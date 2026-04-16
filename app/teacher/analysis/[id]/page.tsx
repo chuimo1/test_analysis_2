@@ -533,9 +533,10 @@ function AnalysisContent() {
               <ul className="space-y-2">
                 {data.keyFeatures.map((f, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="text-indigo-400 mt-2 shrink-0">•</span>
-                    <input value={f} onChange={(e) => updateKeyFeature(i, e.target.value)}
-                      className="text-sm text-gray-600 border border-gray-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                    <span className="text-indigo-400 mt-2.5 shrink-0">•</span>
+                    <textarea value={f} onChange={(e) => updateKeyFeature(i, e.target.value)}
+                      rows={2}
+                      className="text-sm text-gray-600 border border-gray-200 rounded-lg px-2 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y leading-relaxed" />
                   </li>
                 ))}
               </ul>
@@ -543,8 +544,8 @@ function AnalysisContent() {
             <div>
               <h3 className="text-sm font-semibold text-gray-700 mb-3">전년도 비교</h3>
               <textarea value={data.yearOverYearComparison} onChange={(e) => updateYearOverYear(e.target.value)}
-                rows={4}
-                className="text-sm text-gray-600 border border-gray-200 rounded-xl px-3 py-2 w-full leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none" />
+                rows={6}
+                className="text-sm text-gray-600 border border-gray-200 rounded-xl px-3 py-2 w-full leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
             </div>
           </div>
         </section>
@@ -579,9 +580,10 @@ function AnalysisContent() {
                       <span className="text-xs font-semibold text-red-700 px-2 py-1 bg-red-100 rounded-lg w-14 text-center">{syncedRate}%</span>
                     </div>
                   </div>
-                  <input value={k.reason} onChange={(e) => updateKiller(i, 'reason', e.target.value)}
+                  <textarea value={k.reason} onChange={(e) => updateKiller(i, 'reason', e.target.value)}
                     placeholder="킬러문항인 이유"
-                    className="text-xs border border-red-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-red-300 bg-white" />
+                    rows={2}
+                    className="text-xs border border-red-200 rounded-lg px-2 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-red-300 bg-white resize-y leading-relaxed" />
                 </div>
                 <div className="flex flex-col gap-1 shrink-0 items-end">
                   <button onClick={() => removeKiller(i)} title="제거"
@@ -613,13 +615,15 @@ function AnalysisContent() {
               <div key={i} className="grid md:grid-cols-2 gap-3">
                 <div className="flex items-start gap-3 bg-gray-50 rounded-xl p-4">
                   <span className="text-xs font-semibold text-gray-400 whitespace-nowrap mt-1.5">출제경향</span>
-                  <input value={s.trend} onChange={(e) => updateStrategy(i, 'trend', e.target.value)}
-                    className="text-sm text-gray-700 border border-gray-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white" />
+                  <textarea value={s.trend} onChange={(e) => updateStrategy(i, 'trend', e.target.value)}
+                    rows={2}
+                    className="text-sm text-gray-700 border border-gray-200 rounded-lg px-2 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white resize-y leading-relaxed" />
                 </div>
                 <div className="flex items-start gap-3 bg-indigo-50 rounded-xl p-4">
                   <span className="text-xs font-semibold text-indigo-400 whitespace-nowrap mt-1.5">전략</span>
-                  <input value={s.strategy} onChange={(e) => updateStrategy(i, 'strategy', e.target.value)}
-                    className="text-sm text-gray-700 border border-indigo-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white" />
+                  <textarea value={s.strategy} onChange={(e) => updateStrategy(i, 'strategy', e.target.value)}
+                    rows={2}
+                    className="text-sm text-gray-700 border border-indigo-200 rounded-lg px-2 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white resize-y leading-relaxed" />
                 </div>
               </div>
             ))}
