@@ -44,7 +44,7 @@ export async function createSignup(form: {
     is_approved: false,
   })
 
-  if (error) return { error: '가입 신청 중 오류가 발생했습니다.' }
+  if (error) return { error: `가입 실패: ${error.message}` }
   return { success: true }
 }
 
