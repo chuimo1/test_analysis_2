@@ -14,9 +14,12 @@ export async function login(userId: string, password: string) {
   if (!data.is_approved) return { error: '관리자 승인 대기 중입니다.' }
   if (!data.is_active) return { error: '비활성화된 계정입니다.' }
 
-  // 간이 비밀번호 체크 (초기 비밀번호 3700, 추후 해시로 전환)
-  // 현재는 비밀번호 컬럼 없이 진행 — 모든 계정 비밀번호를 3700으로 간주
-  if (password !== '3700') return { error: '아이디 또는 비밀번호가 올바르지 않습니다.' }
+  if (data.password_hash && data.password_hash !== password) {
+    return { error: '아이디 또는 비밀번호가 올바르지 않습니다.' }
+  }
+  if (!data.password_hash && password !== '3700') {
+    return { error: '아이디 또는 비밀번호가 올바르지 않습니다.' }
+  }
 
   return { user: data }
 }
@@ -25,6 +28,7 @@ export async function createSignup(form: {
   userId: string
   name: string
   phone: string
+  password: string
   subject: string
 }) {
   const { data: existing } = await supabase
@@ -39,6 +43,7 @@ export async function createSignup(form: {
     user_id: form.userId,
     name: form.name,
     phone: form.phone,
+    password_hash: form.password,
     role: 'teacher',
     subject: form.subject,
     is_approved: false,

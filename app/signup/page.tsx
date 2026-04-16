@@ -58,6 +58,7 @@ export default function SignupPage() {
       userId: form.userId,
       name: form.name,
       phone: form.phone,
+      password: form.password,
       subject: form.subject,
     })
 
