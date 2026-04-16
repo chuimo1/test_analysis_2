@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Subject, Grade, Difficulty, ExamScopeItem, SourceCategory } from '@/lib/types'
+import { createExam } from '@/lib/db'
 
 const GRADES: Grade[] = ['중1', '중2', '중3', '고1', '고2', '고3']
 const TERMS = ['1학기 중간고사', '1학기 기말고사', '2학기 중간고사', '2학기 기말고사', '모의고사']
@@ -123,16 +124,34 @@ export default function UploadPage() {
       }
 
       const analysis = await res.json()
-      // 결과를 localStorage에 임시 저장 (추후 Supabase로 대체)
-      localStorage.setItem('analysisResult', JSON.stringify(analysis))
+
+      const user = JSON.parse(localStorage.getItem('currentUser') ?? '{}')
+      const result = await createExam({
+        teacher_id: user.id,
+        subject: form.subject,
+        grade: form.grade,
+        school: form.school,
+        exam_year: Number(form.examYear),
+        exam_term: form.examTerm,
+        exam_scope: examScope,
+        expected_difficulty: form.expectedDifficulty,
+        teacher_note: form.teacherNote,
+        analysis,
+      })
+
+      if (result.error) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
+
+      setLoading(false)
+      router.push(`/teacher/analysis/${result.id}`)
     } catch {
       setError('서버 오류가 발생했습니다. 다시 시도해주세요.')
       setLoading(false)
       return
     }
-
-    setLoading(false)
-    router.push('/teacher/analysis/1')
   }
 
   return (

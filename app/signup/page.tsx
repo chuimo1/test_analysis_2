@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Subject } from '@/lib/types'
+import { createSignup } from '@/lib/db'
 
 const SUBJECTS: Subject[] = ['국어', '영어', '수학', '사회']
 
@@ -53,29 +54,15 @@ export default function SignupPage() {
 
     setLoading(true)
 
-    try {
-      const pendingRaw = localStorage.getItem('pendingSignups') ?? '[]'
-      const usersRaw = localStorage.getItem('users') ?? '[]'
-      const pending = JSON.parse(pendingRaw) as { userId: string }[]
-      const users = JSON.parse(usersRaw) as { userId: string }[]
+    const result = await createSignup({
+      userId: form.userId,
+      name: form.name,
+      phone: form.phone,
+      subject: form.subject,
+    })
 
-      if (pending.some((p) => p.userId === form.userId) || users.some((u) => u.userId === form.userId)) {
-        setError('이미 사용 중이거나 신청된 아이디입니다.')
-        setLoading(false)
-        return
-      }
-
-      pending.unshift({
-        id: `ps_${Date.now()}`,
-        userId: form.userId,
-        name: form.name,
-        phone: form.phone,
-        subject: form.subject,
-        appliedAt: new Date().toISOString().slice(0, 10),
-      } as unknown as { userId: string })
-      localStorage.setItem('pendingSignups', JSON.stringify(pending))
-    } catch {
-      setError('저장 중 오류가 발생했습니다.')
+    if (result.error) {
+      setError(result.error)
       setLoading(false)
       return
     }

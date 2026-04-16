@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -111,51 +111,56 @@ const DIFF_BADGE: Record<string, string> = {
 
 // ── 페이지 ────────────────────────────────────────────────────────
 function AnalysisContent() {
+  const params = useParams()
+  const examId = params.id as string
   const searchParams = useSearchParams()
   const [data, setData] = useState(DUMMY)
   const [saved, setSaved] = useState(false)
+  const [examDbId, setExamDbId] = useState<string | null>(null)
 
   useEffect(() => {
-    const stored = localStorage.getItem('analysisResult')
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        // undefined 방지: 각 필드에 기본값 보장
+    import('@/lib/db').then(({ getExamById }) => {
+      getExamById(examId).then((exam) => {
+        if (!exam?.analysis) return
+        const parsed = exam.analysis as Record<string, unknown>
+        setExamDbId(exam.id)
         const sanitized = {
           ...DUMMY,
-          ...parsed,
-          questions: (parsed.questions ?? []).map((q: Record<string, unknown>) => ({
-            number: q.number ?? 0,
-            type: q.type ?? '객관식',
-            mainUnit: q.mainUnit ?? '',
-            subUnit: q.subUnit ?? '',
-            source: q.source ?? '',
-            intent: q.intent ?? '',
-            expectedCorrectRate: q.expectedCorrectRate ?? 0,
-            difficulty: q.difficulty ?? '중',
-            score: q.score ?? '-',
+          subject: exam.subject,
+          grade: exam.grade,
+          school: exam.school,
+          examYear: exam.exam_year,
+          examTerm: exam.exam_term,
+          questions: ((parsed.questions as Record<string, unknown>[]) ?? []).map((q) => ({
+            number: (q.number as number) ?? 0,
+            type: (q.type as string) ?? '객관식',
+            mainUnit: (q.mainUnit as string) ?? '',
+            subUnit: (q.subUnit as string) ?? '',
+            source: (q.source as string) ?? '',
+            intent: (q.intent as string) ?? '',
+            expectedCorrectRate: (q.expectedCorrectRate as number) ?? 0,
+            difficulty: (q.difficulty as string) ?? '중',
+            score: (q.score as string) ?? '-',
           })),
-          keyFeatures: (parsed.keyFeatures ?? []).map((f: unknown) => f ?? ''),
-          yearOverYearComparison: parsed.yearOverYearComparison ?? '',
-          killerQuestions: (parsed.killerQuestions ?? []).map((k: Record<string, unknown>) => ({
-            number: k.number ?? 0,
-            subUnit: k.subUnit ?? '',
-            intent: k.intent ?? '',
-            difficulty: k.difficulty ?? '상',
-            rate: k.rate ?? 0,
-            reason: k.reason ?? '',
+          keyFeatures: ((parsed.keyFeatures as string[]) ?? []).map((f) => String(f ?? '')),
+          yearOverYearComparison: String(parsed.yearOverYearComparison ?? ''),
+          killerQuestions: ((parsed.killerQuestions as Record<string, unknown>[]) ?? []).map((k) => ({
+            number: (k.number as number) ?? 0,
+            subUnit: (k.subUnit as string) ?? '',
+            intent: (k.intent as string) ?? '',
+            difficulty: (k.difficulty as string) ?? '상',
+            rate: (k.rate as number) ?? 0,
+            reason: (k.reason as string) ?? '',
           })),
-          strategies: (parsed.strategies ?? []).map((s: Record<string, unknown>) => ({
-            trend: s.trend ?? '',
-            strategy: s.strategy ?? '',
+          strategies: ((parsed.strategies as Record<string, unknown>[]) ?? []).map((s) => ({
+            trend: (s.trend as string) ?? '',
+            strategy: (s.strategy as string) ?? '',
           })),
         }
         setData(sanitized)
-      } catch {
-        // 파싱 실패 시 더미 데이터 유지
-      }
-    }
-  }, [])
+      })
+    })
+  }, [examId])
 
   // 출제 현황 셀 수정
   function updateQuestion(idx: number, field: string, value: string | number) {
@@ -269,50 +274,21 @@ function AnalysisContent() {
     examTerm: searchParams.get('examTerm') || data.examTerm,
   }
 
-  // 제목: "2025년 ○○고 고2 국어 1학기 중간고사"
   const examTitle = `${d.examYear}년 ${d.school} ${d.grade} ${d.subject} ${d.examTerm}`
 
-  function buildRecord(isFinalized: boolean) {
-    const id = `exam_${Date.now()}`
-    return {
-      id,
-      title: examTitle,
-      teacherName: '홍길동', // TODO: 로그인 사용자로 교체
-      subject: d.subject,
-      grade: d.grade,
-      school: d.school,
-      examYear: d.examYear,
-      examTerm: d.examTerm,
-      isFinalized,
-      createdAt: new Date().toISOString().slice(0, 10),
-      analysis: { ...data, subject: d.subject, grade: d.grade, school: d.school, examYear: d.examYear, examTerm: d.examTerm },
-    }
-  }
-
-  function handleSave() {
-    const record = buildRecord(false)
-    const existing: Record<string, unknown>[] = JSON.parse(localStorage.getItem('examList') ?? '[]')
-    // 같은 id면 덮어쓰기
-    const idx = existing.findIndex((e) => (e as { id: string }).id === record.id)
-    if (idx >= 0) existing[idx] = record
-    else existing.unshift(record)
-    localStorage.setItem('examList', JSON.stringify(existing))
-    localStorage.setItem('currentExamId', record.id)
+  async function handleSave() {
+    if (!examDbId) return
+    const { updateExamAnalysis } = await import('@/lib/db')
+    await updateExamAnalysis(examDbId, { ...data })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
-  function handleFinalize() {
-    const record = buildRecord(true)
-    const existing: Record<string, unknown>[] = JSON.parse(localStorage.getItem('examList') ?? '[]')
-    const currentId = localStorage.getItem('currentExamId')
-    const idx = existing.findIndex((e) => (e as { id: string }).id === currentId)
-    if (idx >= 0) {
-      existing[idx] = { ...(existing[idx] as object), ...record, id: currentId! }
-    } else {
-      existing.unshift(record)
-    }
-    localStorage.setItem('examList', JSON.stringify(existing))
+  async function handleFinalize() {
+    if (!examDbId) return
+    const { updateExamAnalysis, finalizeExam } = await import('@/lib/db')
+    await updateExamAnalysis(examDbId, { ...data })
+    await finalizeExam(examDbId)
     setSaved(true)
     alert(`"${examTitle}" 분석이 완료되어 실장에게 전달됐습니다.`)
     setTimeout(() => setSaved(false), 2000)

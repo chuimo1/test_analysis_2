@@ -1,33 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Subject, SubjectChangeRequest, User } from '@/lib/types'
-
-interface ExamRecord {
-  id: string
-  teacherName?: string
-  teacherId?: string
-  title?: string
-  subject: string
-  grade: string
-  school: string
-  examYear: number
-  examTerm: string
-  isFinalized: boolean
-  blogPublishedAt?: string
-  createdAt: string
-}
-
-interface PendingSignup {
-  id: string
-  userId: string
-  name: string
-  phone: string
-  subject: Subject
-  appliedAt: string
-}
+import {
+  getPendingSignups, approveUser, rejectUser,
+  getTeachers, toggleUserActive,
+  getExams,
+  getSubjectChangeRequests, processSubjectChange,
+} from '@/lib/db'
 
 const SUBJECT_STYLE: Record<string, string> = {
   국어: 'bg-blue-100 text-blue-700',
@@ -44,88 +25,63 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<Tab>('posts')
   const [postStatus, setPostStatus] = useState<PostStatus>('waiting')
 
-  const [exams, setExams] = useState<ExamRecord[]>([])
-  const [pendingSignups, setPendingSignups] = useState<PendingSignup[]>([])
-  const [subjectRequests, setSubjectRequests] = useState<SubjectChangeRequest[]>([])
-  const [users, setUsers] = useState<User[]>([])
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const [exams, setExams] = useState<any[]>([])
+  const [pendingSignups, setPendingSignups] = useState<any[]>([])
+  const [subjectRequests, setSubjectRequests] = useState<any[]>([])
+  const [teachers, setTeachers] = useState<any[]>([])
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   const [filter, setFilter] = useState({ school: '', grade: '', subject: '', examYear: '', examTerm: '' })
 
-  useEffect(() => {
-    const read = <T,>(key: string, fallback: T): T => {
-      try { return JSON.parse(localStorage.getItem(key) ?? '') } catch { return fallback }
-    }
-    setExams(read<ExamRecord[]>('examList', []))
-    setPendingSignups(read<PendingSignup[]>('pendingSignups', []))
-    setSubjectRequests(read<SubjectChangeRequest[]>('subjectChangeRequests', []))
-    setUsers(read<User[]>('users', []))
+  const loadData = useCallback(async () => {
+    const [e, p, s, t] = await Promise.all([
+      getExams(),
+      getPendingSignups(),
+      getSubjectChangeRequests(),
+      getTeachers(),
+    ])
+    setExams(e)
+    setPendingSignups(p)
+    setSubjectRequests(s)
+    setTeachers(t)
   }, [])
 
-  function persist<T>(key: string, value: T) {
-    localStorage.setItem(key, JSON.stringify(value))
+  useEffect(() => { loadData() }, [loadData])
+
+  async function handleApprove(id: string) {
+    await approveUser(id)
+    loadData()
   }
 
-  function approveSignup(id: string) {
-    const target = pendingSignups.find((p) => p.id === id)
-    if (!target) return
-    const nextPending = pendingSignups.filter((p) => p.id !== id)
-    const newUser: User = {
-      id: `u_${Date.now()}`,
-      userId: target.userId,
-      name: target.name,
-      phone: target.phone,
-      role: 'teacher',
-      subject: target.subject,
-      isApproved: true,
-      isActive: true,
-      firstLoginCompleted: false,
-      createdAt: new Date().toISOString().slice(0, 10),
-    }
-    const nextUsers = [...users, newUser]
-    setPendingSignups(nextPending); setUsers(nextUsers)
-    persist('pendingSignups', nextPending); persist('users', nextUsers)
+  async function handleReject(id: string) {
+    await rejectUser(id)
+    loadData()
   }
 
-  function rejectSignup(id: string) {
-    const next = pendingSignups.filter((p) => p.id !== id)
-    setPendingSignups(next); persist('pendingSignups', next)
+  async function handleSubjectChange(id: string, approve: boolean) {
+    await processSubjectChange(id, approve)
+    loadData()
   }
 
-  function processSubjectRequest(id: string, approve: boolean) {
-    const target = subjectRequests.find((r) => r.id === id)
-    if (!target) return
-    const nextRequests = subjectRequests.map((r) =>
-      r.id === id ? { ...r, status: approve ? 'approved' as const : 'rejected' as const } : r,
-    )
-    setSubjectRequests(nextRequests); persist('subjectChangeRequests', nextRequests)
-
-    if (approve) {
-      const nextUsers = users.map((u) =>
-        u.userId === target.userId ? { ...u, subject: target.requestedSubject } : u,
-      )
-      setUsers(nextUsers); persist('users', nextUsers)
-    }
-  }
-
-  function toggleActive(userId: string) {
-    const next = users.map((u) => u.userId === userId ? { ...u, isActive: !u.isActive } : u)
-    setUsers(next); persist('users', next)
+  async function handleToggleActive(id: string, currentActive: boolean) {
+    await toggleUserActive(id, !currentActive)
+    loadData()
   }
 
   const filteredExams = exams.filter((e) => {
     if (filter.school && !e.school.includes(filter.school)) return false
     if (filter.grade && e.grade !== filter.grade) return false
     if (filter.subject && e.subject !== filter.subject) return false
-    if (filter.examYear && String(e.examYear) !== filter.examYear) return false
-    if (filter.examTerm && e.examTerm !== filter.examTerm) return false
+    if (filter.examYear && String(e.exam_year) !== filter.examYear) return false
+    if (filter.examTerm && e.exam_term !== filter.examTerm) return false
     return true
   })
 
-  const waiting = filteredExams.filter((e) => e.isFinalized && !e.blogPublishedAt)
-  const editing = filteredExams.filter((e) => !e.isFinalized)
-  const published = filteredExams.filter((e) => e.isFinalized && e.blogPublishedAt)
+  const waiting = filteredExams.filter((e) => e.is_finalized && !e.blog_published_at)
+  const editing = filteredExams.filter((e) => !e.is_finalized)
+  const published = filteredExams.filter((e) => e.is_finalized && e.blog_published_at)
   const currentList = postStatus === 'waiting' ? waiting : postStatus === 'editing' ? editing : published
-  const pendingSubjectRequests = subjectRequests.filter((r) => r.status === 'pending')
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -142,9 +98,8 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">실장</span>
-            <button onClick={() => router.push('/login')} className="text-sm text-gray-400 hover:text-gray-600 transition">
-              로그아웃
-            </button>
+            <button onClick={() => { localStorage.removeItem('currentUser'); router.push('/login') }}
+              className="text-sm text-gray-400 hover:text-gray-600 transition">로그아웃</button>
           </div>
         </div>
       </header>
@@ -154,7 +109,7 @@ export default function AdminDashboard() {
           {([
             ['posts', '시험 분석 목록', waiting.length],
             ['pending', '가입 승인', pendingSignups.length],
-            ['subject', '과목 변경', pendingSubjectRequests.length],
+            ['subject', '과목 변경', subjectRequests.length],
             ['teachers', '강사 관리', 0],
           ] as const).map(([key, label, badge]) => (
             <button key={key} onClick={() => setTab(key)}
@@ -198,7 +153,7 @@ export default function AdminDashboard() {
               <select value={filter.examYear} onChange={(e) => setFilter({ ...filter, examYear: e.target.value })}
                 className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs">
                 <option value="">전체연도</option>
-                {[2026, 2025, 2024, 2023, 2022].map((y) => <option key={y}>{y}</option>)}
+                {[2026,2025,2024,2023,2022].map((y) => <option key={y}>{y}</option>)}
               </select>
               <select value={filter.examTerm} onChange={(e) => setFilter({ ...filter, examTerm: e.target.value })}
                 className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs">
@@ -214,28 +169,29 @@ export default function AdminDashboard() {
             ) : (
               <div className="space-y-3">
                 {currentList.map((p) => {
-                  const canOpen = p.isFinalized
-                  const Inner = (
-                    <div className={`flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-6 py-5 ${canOpen ? 'hover:border-indigo-300 hover:shadow-sm group' : 'opacity-60'} transition`}>
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${SUBJECT_STYLE[p.subject] ?? 'bg-gray-100 text-gray-700'}`}>
-                          {p.subject}
+                  const teacherName = p.users?.name ?? '—'
+                  return (
+                    <Link key={p.id} href={`/admin/post/${p.id}`}>
+                      <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-6 py-5 hover:border-indigo-300 hover:shadow-sm transition">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${SUBJECT_STYLE[p.subject] ?? 'bg-gray-100 text-gray-700'}`}>
+                            {p.subject}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">
+                              {p.school} · {p.grade} {p.exam_year}년 {p.exam_term}
+                            </p>
+                            <p className="text-gray-400 text-xs mt-0.5">{teacherName} · {p.created_at?.slice(0, 10)}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">
-                            {p.title || `${p.school} · ${p.grade} ${p.examYear}년 ${p.examTerm}`}
-                          </p>
-                          <p className="text-gray-400 text-xs mt-0.5">{p.teacherName ?? '—'} · {p.createdAt}</p>
+                        <div className="flex items-center gap-3">
+                          {postStatus === 'waiting' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-red-100 text-red-700">발행 대기</span>}
+                          {postStatus === 'editing' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-yellow-100 text-yellow-700">수정 중</span>}
+                          {postStatus === 'published' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-green-100 text-green-700">발행 완료</span>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {postStatus === 'waiting' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-red-100 text-red-700">발행 대기</span>}
-                        {postStatus === 'editing' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-yellow-100 text-yellow-700">수정 중</span>}
-                        {postStatus === 'published' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-green-100 text-green-700">발행 완료</span>}
-                      </div>
-                    </div>
+                    </Link>
                   )
-                  return canOpen ? <Link key={p.id} href={`/admin/post/${p.id}`}>{Inner}</Link> : <div key={p.id}>{Inner}</div>
                 })}
               </div>
             )}
@@ -261,13 +217,13 @@ export default function AdminDashboard() {
                           {p.name}
                           <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${SUBJECT_STYLE[p.subject] ?? 'bg-gray-100 text-gray-700'}`}>{p.subject}</span>
                         </p>
-                        <p className="text-gray-400 text-xs mt-0.5">{p.userId} · {p.phone}</p>
+                        <p className="text-gray-400 text-xs mt-0.5">{p.user_id} · {p.phone ?? '—'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => rejectSignup(p.id)}
+                      <button onClick={() => handleReject(p.id)}
                         className="px-4 py-2 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition">거절</button>
-                      <button onClick={() => approveSignup(p.id)}
+                      <button onClick={() => handleApprove(p.id)}
                         className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition">승인</button>
                     </div>
                   </div>
@@ -279,33 +235,35 @@ export default function AdminDashboard() {
 
         {tab === 'subject' && (
           <div>
-            {pendingSubjectRequests.length === 0 ? (
+            {subjectRequests.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center">
                 <p className="text-gray-400 text-sm">대기 중인 과목 변경 신청이 없습니다</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {pendingSubjectRequests.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-6 py-5">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">{r.userId}</p>
-                        <p className="text-gray-400 text-xs mt-0.5 flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-full ${SUBJECT_STYLE[r.currentSubject]}`}>{r.currentSubject}</span>
-                          <span>→</span>
-                          <span className={`px-2 py-0.5 rounded-full ${SUBJECT_STYLE[r.requestedSubject]}`}>{r.requestedSubject}</span>
-                          <span className="ml-2">{r.requestedAt}</span>
-                        </p>
+                {subjectRequests.map((r) => {
+                  const userName = r.users?.name ?? r.users?.user_id ?? '—'
+                  return (
+                    <div key={r.id} className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-6 py-5">
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{userName}</p>
+                          <p className="text-gray-400 text-xs mt-0.5 flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-full ${SUBJECT_STYLE[r.current_subject]}`}>{r.current_subject}</span>
+                            <span>→</span>
+                            <span className={`px-2 py-0.5 rounded-full ${SUBJECT_STYLE[r.requested_subject]}`}>{r.requested_subject}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleSubjectChange(r.id, false)}
+                          className="px-4 py-2 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition">거절</button>
+                        <button onClick={() => handleSubjectChange(r.id, true)}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition">승인</button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => processSubjectRequest(r.id, false)}
-                        className="px-4 py-2 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition">거절</button>
-                      <button onClick={() => processSubjectRequest(r.id, true)}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition">승인</button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -313,14 +271,14 @@ export default function AdminDashboard() {
 
         {tab === 'teachers' && (
           <div>
-            {users.length === 0 ? (
+            {teachers.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center">
                 <p className="text-gray-400 text-sm">등록된 강사가 없습니다</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {users.filter((u) => u.role === 'teacher').map((u) => (
-                  <div key={u.id} className={`flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-6 py-5 ${!u.isActive ? 'opacity-60' : ''}`}>
+                {teachers.map((u) => (
+                  <div key={u.id} className={`flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-6 py-5 ${!u.is_active ? 'opacity-60' : ''}`}>
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-gray-600 font-bold text-sm">
                         {u.name[0]}
@@ -331,14 +289,14 @@ export default function AdminDashboard() {
                           {u.subject && (
                             <span className={`text-xs px-2 py-0.5 rounded-full ${SUBJECT_STYLE[u.subject]}`}>{u.subject}</span>
                           )}
-                          {!u.isActive && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">비활성</span>}
+                          {!u.is_active && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">비활성</span>}
                         </p>
-                        <p className="text-gray-400 text-xs mt-0.5">{u.userId} · {u.phone || '전화번호 없음'} · 가입일 {u.createdAt}</p>
+                        <p className="text-gray-400 text-xs mt-0.5">{u.user_id} · {u.phone || '전화번호 없음'} · 가입일 {u.created_at?.slice(0, 10)}</p>
                       </div>
                     </div>
-                    <button onClick={() => toggleActive(u.userId)}
-                      className={`px-4 py-2 text-sm font-medium rounded-xl transition ${u.isActive ? 'border border-gray-200 text-gray-600 hover:bg-gray-50' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-                      {u.isActive ? '비활성화' : '재활성화'}
+                    <button onClick={() => handleToggleActive(u.id, u.is_active)}
+                      className={`px-4 py-2 text-sm font-medium rounded-xl transition ${u.is_active ? 'border border-gray-200 text-gray-600 hover:bg-gray-50' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                      {u.is_active ? '비활성화' : '재활성화'}
                     </button>
                   </div>
                 ))}

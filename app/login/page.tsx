@@ -3,14 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Subject } from '@/lib/types'
-
-const SUBJECTS: Subject[] = ['국어', '영어', '수학', '사회']
+import { login } from '@/lib/db'
 
 export default function LoginPage() {
   const router = useRouter()
   const [userId, setUserId] = useState('')
-  const [subject, setSubject] = useState<Subject | ''>('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -20,30 +17,31 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    // TODO: Supabase 인증 연동
-    await new Promise((r) => setTimeout(r, 800))
-
     if (!userId || !password) {
       setError('아이디와 비밀번호를 입력해주세요.')
       setLoading(false)
       return
     }
 
-    // 임시 라우팅 (테스트용)
-    if (userId.includes('admin')) {
-      localStorage.setItem('currentUser', JSON.stringify({ userId, role: 'admin' }))
-      router.push('/admin')
-    } else {
-      if (!subject) {
-        setError('담당 과목을 선택해주세요.')
-        setLoading(false)
-        return
-      }
-      localStorage.setItem('currentUser', JSON.stringify({ userId, subject, role: 'teacher' }))
-      router.push('/teacher')
+    const result = await login(userId, password)
+
+    if (result.error) {
+      setError(result.error)
+      setLoading(false)
+      return
     }
 
+    const user = result.user
+    localStorage.setItem('currentUser', JSON.stringify({
+      id: user.id,
+      userId: user.user_id,
+      name: user.name,
+      role: user.role,
+      subject: user.subject,
+    }))
+
     setLoading(false)
+    router.push(user.role === 'admin' ? '/admin' : '/teacher')
   }
 
   return (
@@ -76,20 +74,6 @@ export default function LoginPage() {
                 placeholder="아이디를 입력하세요"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                담당 과목
-              </label>
-              <select
-                value={subject}
-                onChange={(e) => setSubject(e.target.value as Subject)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition bg-white"
-              >
-                <option value="">과목 선택 (관리자는 선택 안해도 됨)</option>
-                {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
             </div>
 
             <div>

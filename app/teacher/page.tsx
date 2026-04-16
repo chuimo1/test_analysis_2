@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Subject } from '@/lib/types'
+import { getExams } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 const SUBJECT_STYLE: Record<string, string> = {
   국어: 'bg-blue-100 text-blue-700',
@@ -14,49 +16,34 @@ const SUBJECT_STYLE: Record<string, string> = {
 
 const SUBJECTS: Subject[] = ['국어', '영어', '수학', '사회']
 
-interface ExamRecord {
-  id: string
-  title: string
-  subject: string
-  grade: string
-  school: string
-  examYear: number
-  examTerm: string
-  isFinalized: boolean
-  createdAt: string
-}
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export default function TeacherDashboard() {
   const router = useRouter()
-  const [exams, setExams] = useState<ExamRecord[]>([])
-  const [currentUser, setCurrentUser] = useState<{ userId: string; subject: Subject } | null>(null)
+  const [exams, setExams] = useState<any[]>([])
+  const [currentUser, setCurrentUser] = useState<{ id: string; userId: string; name: string; subject: Subject } | null>(null)
   const [showChangeModal, setShowChangeModal] = useState(false)
   const [newSubject, setNewSubject] = useState<Subject | ''>('')
   const [changeRequested, setChangeRequested] = useState(false)
 
   useEffect(() => {
-    const stored = localStorage.getItem('examList')
-    if (stored) {
-      try { setExams(JSON.parse(stored)) } catch { /* ignore */ }
-    }
     const user = localStorage.getItem('currentUser')
     if (user) {
-      try { setCurrentUser(JSON.parse(user)) } catch { /* ignore */ }
+      try {
+        const parsed = JSON.parse(user)
+        setCurrentUser(parsed)
+        getExams(parsed.id).then(setExams)
+      } catch { /* ignore */ }
     }
   }, [])
 
-  function handleSubjectChangeRequest() {
+  async function handleSubjectChangeRequest() {
     if (!newSubject || !currentUser) return
-    const requests = JSON.parse(localStorage.getItem('subjectChangeRequests') ?? '[]')
-    requests.unshift({
-      id: `scr_${Date.now()}`,
-      userId: currentUser.userId,
-      currentSubject: currentUser.subject,
-      requestedSubject: newSubject,
-      requestedAt: new Date().toISOString().slice(0, 10),
-      status: 'pending',
+    await supabase.from('subject_change_requests').insert({
+      user_id: currentUser.id,
+      current_subject: currentUser.subject,
+      requested_subject: newSubject,
     })
-    localStorage.setItem('subjectChangeRequests', JSON.stringify(requests))
     setShowChangeModal(false)
     setNewSubject('')
     setChangeRequested(true)
@@ -145,18 +132,18 @@ export default function TeacherDashboard() {
                   </div>
                   <div>
                     <p className="font-medium text-gray-900 text-sm">
-                      {exam.title || `${exam.examYear}년 ${exam.school} ${exam.grade} ${exam.subject} ${exam.examTerm}`}
+                      {`${exam.exam_year}년 ${exam.school} ${exam.grade} ${exam.subject} ${exam.exam_term}`}
                     </p>
-                    <p className="text-gray-400 text-xs mt-0.5">{exam.createdAt} 분석</p>
+                    <p className="text-gray-400 text-xs mt-0.5">{exam.created_at?.slice(0, 10)} 분석</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`text-xs font-medium px-3 py-1 rounded-full ${
-                    exam.isFinalized
+                    exam.is_finalized
                       ? 'bg-green-100 text-green-700'
                       : 'bg-yellow-100 text-yellow-700'
                   }`}>
-                    {exam.isFinalized ? '수정 완료' : '수정 중'}
+                    {exam.is_finalized ? '수정 완료' : '수정 중'}
                   </span>
                   <svg className="w-4 h-4 text-gray-300 group-hover:text-indigo-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { generateBlogHtml } from '@/lib/blog-html'
+import { getExamById, updateExamBlog, publishExam } from '@/lib/db'
 
 export default function AdminPostPage() {
   const params = useParams()
@@ -15,43 +16,39 @@ export default function AdminPostPage() {
   const [editing, setEditing] = useState(false)
 
   useEffect(() => {
-    const list = JSON.parse(localStorage.getItem('examList') ?? '[]')
-    const exam = list.find((e: { id: string }) => e.id === id)
-    if (!exam) return
+    getExamById(id).then((exam) => {
+      if (!exam) return
+      const a = exam.analysis as Record<string, unknown> | null
 
-    setMeta({
-      teacher: exam.teacherName ?? '강사',
-      date: exam.createdAt?.slice(0, 10) ?? '',
-      title: `${exam.examYear}년 ${exam.school} ${exam.grade} ${exam.examTerm} ${exam.subject}`,
-      status: exam.blogPublishedAt ? '발행 완료' : exam.isFinalized ? '수정 완료' : '수정 중',
-    })
-
-    if (exam.blogContent) {
-      setBlogHtml(exam.blogContent)
-    } else {
-      const html = generateBlogHtml({
-        subject: exam.subject,
-        grade: exam.grade,
-        school: exam.school,
-        examYear: exam.examYear,
-        examTerm: exam.examTerm,
-        keyFeatures: exam.keyFeatures ?? [],
-        yearOverYearComparison: exam.yearOverYearComparison ?? '',
-        killerQuestions: exam.killerQuestions ?? [],
-        strategies: exam.strategies ?? [],
-        questions: exam.questions ?? [],
+      setMeta({
+        teacher: exam.users?.name ?? '강사',
+        date: exam.created_at?.slice(0, 10) ?? '',
+        title: `${exam.exam_year}년 ${exam.school} ${exam.grade} ${exam.exam_term} ${exam.subject}`,
+        status: exam.blog_published_at ? '발행 완료' : exam.is_finalized ? '수정 완료' : '수정 중',
       })
-      setBlogHtml(html)
-    }
+
+      if (exam.blog_content) {
+        setBlogHtml(exam.blog_content)
+      } else if (a) {
+        const html = generateBlogHtml({
+          subject: exam.subject,
+          grade: exam.grade,
+          school: exam.school,
+          examYear: exam.exam_year,
+          examTerm: exam.exam_term,
+          keyFeatures: (a.keyFeatures as string[]) ?? [],
+          yearOverYearComparison: (a.yearOverYearComparison as string) ?? '',
+          killerQuestions: (a.killerQuestions as []) ?? [],
+          strategies: (a.strategies as []) ?? [],
+          questions: (a.questions as []) ?? [],
+        })
+        setBlogHtml(html)
+      }
+    })
   }, [id])
 
   function saveBlogContent(html: string) {
-    const list = JSON.parse(localStorage.getItem('examList') ?? '[]')
-    const idx = list.findIndex((e: { id: string }) => e.id === id)
-    if (idx >= 0) {
-      list[idx].blogContent = html
-      localStorage.setItem('examList', JSON.stringify(list))
-    }
+    updateExamBlog(id, html)
   }
 
   async function handleCopy() {
@@ -68,15 +65,9 @@ export default function AdminPostPage() {
     setTimeout(() => setCopied(false), 2500)
   }
 
-  function handlePublish() {
-    const list = JSON.parse(localStorage.getItem('examList') ?? '[]')
-    const idx = list.findIndex((e: { id: string }) => e.id === id)
-    if (idx >= 0) {
-      list[idx].blogPublishedAt = new Date().toISOString()
-      list[idx].blogContent = blogHtml
-      localStorage.setItem('examList', JSON.stringify(list))
-      setMeta((prev) => ({ ...prev, status: '발행 완료' }))
-    }
+  async function handlePublish() {
+    await publishExam(id, blogHtml)
+    setMeta((prev) => ({ ...prev, status: '발행 완료' }))
   }
 
   const statusColor =
