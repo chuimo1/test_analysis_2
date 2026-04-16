@@ -120,6 +120,7 @@ function AnalysisContent() {
   const [view, setView] = useState<'analysis' | 'blog'>('analysis')
   const [blogHtml, setBlogHtml] = useState('')
   const [blogEditing, setBlogEditing] = useState(false)
+  const [teacherComment, setTeacherComment] = useState('')
 
   useEffect(() => {
     import('@/lib/db').then(({ getExamById }) => {
@@ -300,6 +301,7 @@ function AnalysisContent() {
       killerQuestions: data.killerQuestions,
       strategies: data.strategies,
       questions: data.questions,
+      teacherComment,
     })
     await updateExamBlog(examDbId, finalBlog)
     await finalizeExam(examDbId)
@@ -339,22 +341,7 @@ function AnalysisContent() {
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${view === 'analysis' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
                 분석
               </button>
-              <button onClick={() => {
-                if (!blogHtml) {
-                  import('@/lib/blog-html').then(({ generateBlogHtml }) => {
-                    setBlogHtml(generateBlogHtml({
-                      subject: d.subject, grade: d.grade, school: d.school,
-                      examYear: d.examYear, examTerm: d.examTerm,
-                      keyFeatures: data.keyFeatures,
-                      yearOverYearComparison: data.yearOverYearComparison,
-                      killerQuestions: data.killerQuestions,
-                      strategies: data.strategies,
-                      questions: data.questions,
-                    }))
-                  })
-                }
-                setView('blog')
-              }}
+              <button onClick={() => setView('blog')}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${view === 'blog' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
                 블로그 미리보기
               </button>
@@ -380,34 +367,29 @@ function AnalysisContent() {
           <p className="text-gray-500 text-sm mt-1">과목: {d.subject}</p>
         </div>
 
-        {/* 블로그 미리보기 모드 */}
+        {/* 블로그 미리보기 모드 — 실시간 데이터 반영 */}
         {view === 'blog' && (
           <>
             <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500">네이버 블로그에 올릴 글을 미리보고 수정하세요. 수정 후 &quot;수정 완료 · 실장 전달&quot;을 누르면 실장에게 전달됩니다.</p>
+              <p className="text-sm text-gray-500">분석 탭에서 수정한 내용이 실시간 반영됩니다. 코멘트를 추가하고 &quot;수정 완료 · 실장 전달&quot;을 누르세요.</p>
               <div className="flex items-center gap-2">
-                <button onClick={() => {
-                  import('@/lib/blog-html').then(({ generateBlogHtml }) => {
-                    setBlogHtml(generateBlogHtml({
-                      subject: d.subject, grade: d.grade, school: d.school,
-                      examYear: d.examYear, examTerm: d.examTerm,
-                      keyFeatures: data.keyFeatures,
-                      yearOverYearComparison: data.yearOverYearComparison,
-                      killerQuestions: data.killerQuestions,
-                      strategies: data.strategies,
-                      questions: data.questions,
-                    }))
-                  })
-                }}
-                  className="text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition">
-                  분석 데이터로 재생성
-                </button>
                 <button onClick={() => setBlogEditing(!blogEditing)}
                   className={`text-xs px-3 py-1.5 rounded-lg transition ${blogEditing ? 'bg-green-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                   {blogEditing ? 'HTML 편집 닫기' : 'HTML 직접 편집'}
                 </button>
                 <button onClick={async () => {
-                  await navigator.clipboard.writeText(blogHtml)
+                  const { generateBlogHtml } = await import('@/lib/blog-html')
+                  const html = generateBlogHtml({
+                    subject: d.subject, grade: d.grade, school: d.school,
+                    examYear: d.examYear, examTerm: d.examTerm,
+                    keyFeatures: data.keyFeatures,
+                    yearOverYearComparison: data.yearOverYearComparison,
+                    killerQuestions: data.killerQuestions,
+                    strategies: data.strategies,
+                    questions: data.questions,
+                    teacherComment,
+                  })
+                  await navigator.clipboard.writeText(html)
                   alert('HTML이 클립보드에 복사됐습니다!')
                 }}
                   className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition">
@@ -424,19 +406,158 @@ function AnalysisContent() {
               />
             )}
 
-            <div className="bg-white rounded-2xl border border-gray-200 p-8">
-              <div
-                className="prose prose-gray max-w-none text-sm leading-relaxed
-                  [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-gray-900 [&_h1]:mb-4
-                  [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-gray-900 [&_h2]:mt-8 [&_h2]:mb-3
-                  [&_p]:text-gray-700 [&_p]:mb-3
-                  [&_ul]:space-y-1 [&_ul]:mb-4 [&_li]:text-gray-700
-                  [&_ol]:space-y-2 [&_ol]:mb-4
-                  [&_table]:w-full [&_table]:text-sm
-                  [&_strong]:font-semibold [&_strong]:text-gray-900"
-                dangerouslySetInnerHTML={{ __html: blogHtml }}
-              />
-            </div>
+            {!blogEditing && (
+              <div className="space-y-8">
+                {/* 블로그 제목 */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-8">
+                  <h1 className="text-2xl font-bold text-gray-900 border-b-2 border-indigo-500 pb-3 mb-4">
+                    {d.examYear}년 {d.school} {d.grade} {d.examTerm} {d.subject} 분석
+                  </h1>
+                  <p className="text-gray-600">안녕하세요, <strong>품격에듀</strong>입니다! {d.examTerm} {d.subject} 시험을 분석한 결과를 공유합니다.</p>
+                </div>
+
+                {/* 시험 개요 */}
+                <div className="bg-blue-50 rounded-2xl border border-blue-200 p-6">
+                  <h2 className="text-lg font-bold text-blue-900 mb-2">📊 시험 개요</h2>
+                  <p className="text-blue-800">
+                    총 <strong>{data.questions.length}문항</strong> · 예상 평균정답률 <strong>{data.questions.length > 0 ? Math.round(data.questions.reduce((s, q) => s + q.expectedCorrectRate, 0) / data.questions.length) : 0}%</strong>
+                  </p>
+                </div>
+
+                {/* 난이도 + 출처 차트 (분석탭과 동일) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                    <h2 className="text-base font-bold text-gray-900 mb-4">📊 난이도별 비중</h2>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie data={diffData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65}
+                          label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                          labelLine={false} fontSize={11}>
+                          {diffData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                        </Pie>
+                        <Tooltip formatter={(v) => [`${v}문항`]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3">
+                      {diffData.map((dd) => (
+                        <div key={dd.name} className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dd.color }} />
+                          {dd.name} {dd.value}문항
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                    <h2 className="text-base font-bold text-gray-900 mb-4">📚 대단원별 분석</h2>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={mainUnitData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                        <YAxis type="category" dataKey="mainUnit" tick={{ fontSize: 10 }} width={56} />
+                        <Tooltip />
+                        {activeDiffs.map((diff) => (
+                          <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </section>
+                </div>
+
+                {/* 출제 현황 테이블 */}
+                <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4">📋 출제 현황</h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          {['번호', '유형', '대단원', '중단원', '출제의도', '난이도', '예상정답률'].map((h) => (
+                            <th key={h} className="text-left py-2.5 px-3 text-gray-500 font-medium text-xs">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.questions.map((q) => (
+                          <tr key={q.number} className="border-b border-gray-50">
+                            <td className="py-2 px-3 font-medium text-gray-900 text-sm">{q.number}</td>
+                            <td className="py-2 px-3 text-sm text-gray-600">{q.type}</td>
+                            <td className="py-2 px-3 text-sm text-gray-600">{q.mainUnit}</td>
+                            <td className="py-2 px-3 text-sm text-gray-600">{q.subUnit}</td>
+                            <td className="py-2 px-3 text-sm text-gray-600">{q.intent}</td>
+                            <td className="py-2 px-3">
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${DIFF_BADGE[q.difficulty]}`}>{q.difficulty}</span>
+                            </td>
+                            <td className="py-2 px-3 text-sm font-medium" style={{ color: q.expectedCorrectRate <= 40 ? '#ef4444' : q.expectedCorrectRate <= 60 ? '#f97316' : '#22c55e' }}>
+                              {q.expectedCorrectRate}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                {/* 주요 특징 */}
+                <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4">📋 주요 특징</h2>
+                  <ul className="space-y-2">
+                    {data.keyFeatures.map((f, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="text-indigo-500 mt-0.5">✅</span>
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+
+                {/* 전년도 비교 */}
+                <section className="bg-gray-50 rounded-2xl border border-gray-200 p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-3">📈 전년도 비교</h2>
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{data.yearOverYearComparison}</p>
+                </section>
+
+                {/* 킬러문항 */}
+                <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4">🔥 킬러문항 분석</h2>
+                  <div className="space-y-3">
+                    {data.killerQuestions.map((k, i) => (
+                      <div key={i} className="border-l-4 border-red-400 bg-red-50 rounded-r-xl p-4">
+                        <p className="text-sm font-semibold text-red-700 mb-1">
+                          {k.number}번 &nbsp;{k.subUnit} · {k.intent} · 예상정답률 {k.rate}%
+                        </p>
+                        <p className="text-sm text-gray-600">{k.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* 전략 */}
+                <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4">💡 다음 시험 대비 전략</h2>
+                  <div className="space-y-3">
+                    {data.strategies.map((s, i) => (
+                      <div key={i} className="border-l-4 border-indigo-400 bg-indigo-50 rounded-r-xl p-4">
+                        <p className="text-sm font-semibold text-indigo-700 mb-1">📌 {s.trend}</p>
+                        <p className="text-sm text-gray-600">→ {s.strategy}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* 강사 코멘트 */}
+                <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-3">✏️ 강사 코멘트</h2>
+                  <p className="text-xs text-gray-400 mb-3">블로그 글 하단에 추가될 강사 의견입니다. 학부모·학생에게 전달할 메시지를 자유롭게 작성하세요.</p>
+                  <textarea
+                    value={teacherComment}
+                    onChange={(e) => setTeacherComment(e.target.value)}
+                    placeholder="예: 이번 시험은 전반적으로 함수 파트에서 변별력을 두었습니다. 다음 시험 대비 시 이차함수의 활용 문제를 집중적으로 연습하세요."
+                    rows={4}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-y leading-relaxed"
+                  />
+                </section>
+              </div>
+            )}
           </>
         )}
 

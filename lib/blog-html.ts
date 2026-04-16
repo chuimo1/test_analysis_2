@@ -26,6 +26,7 @@ interface BlogData {
     expectedCorrectRate: number
     score: string | number
   }[]
+  teacherComment?: string
 }
 
 const DIFF_COLORS: Record<string, string> = {
@@ -195,6 +196,11 @@ ${killerHtml}
 
 <h2 style="color:#1e1b4b;margin-top:32px">💡 다음 시험 대비 전략</h2>
 ${strategyHtml}
+
+${data.teacherComment ? `<h2 style="color:#1e1b4b;margin-top:32px">✏️ 강사 코멘트</h2>
+<div style="background:#f0fdf4;border-left:4px solid #22c55e;padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0">
+  <p style="margin:0;line-height:1.8;color:#555">${data.teacherComment}</p>
+</div>` : ''}
 
 <p style="text-align:center;color:#9ca3af;margin-top:40px;font-size:13px">─ 품격에듀 AI 시험 분석 리포트 ─</p>
 `
