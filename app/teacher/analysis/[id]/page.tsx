@@ -424,7 +424,7 @@ function AnalysisContent() {
                   </p>
                 </div>
 
-                {/* 난이도 + 출처 차트 (분석탭과 동일) */}
+                {/* 차트 4개 (분석탭과 동일) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <section className="bg-white rounded-2xl border border-gray-200 p-6">
                     <h2 className="text-base font-bold text-gray-900 mb-4">📊 난이도별 비중</h2>
@@ -449,12 +449,42 @@ function AnalysisContent() {
                   </section>
 
                   <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                    <h2 className="text-base font-bold text-gray-900 mb-4">📂 출처별 분석</h2>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={sourceData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                        <YAxis type="category" dataKey="source" tick={{ fontSize: 10 }} width={56} />
+                        <Tooltip />
+                        {activeDiffs.map((diff) => (
+                          <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </section>
+
+                  <section className="bg-white rounded-2xl border border-gray-200 p-6">
                     <h2 className="text-base font-bold text-gray-900 mb-4">📚 대단원별 분석</h2>
                     <ResponsiveContainer width="100%" height={180}>
                       <BarChart data={mainUnitData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                         <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
                         <YAxis type="category" dataKey="mainUnit" tick={{ fontSize: 10 }} width={56} />
+                        <Tooltip />
+                        {activeDiffs.map((diff) => (
+                          <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </section>
+
+                  <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                    <h2 className="text-base font-bold text-gray-900 mb-4">📖 중단원별 분석</h2>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={subUnitData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                        <YAxis type="category" dataKey="subUnit" tick={{ fontSize: 10 }} width={56} />
                         <Tooltip />
                         {activeDiffs.map((diff) => (
                           <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
