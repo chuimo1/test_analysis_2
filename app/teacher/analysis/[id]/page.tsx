@@ -117,6 +117,9 @@ function AnalysisContent() {
   const [data, setData] = useState(DUMMY)
   const [saved, setSaved] = useState(false)
   const [examDbId, setExamDbId] = useState<string | null>(null)
+  const [view, setView] = useState<'analysis' | 'blog'>('analysis')
+  const [blogHtml, setBlogHtml] = useState('')
+  const [blogEditing, setBlogEditing] = useState(false)
 
   useEffect(() => {
     import('@/lib/db').then(({ getExamById }) => {
@@ -286,8 +289,19 @@ function AnalysisContent() {
 
   async function handleFinalize() {
     if (!examDbId) return
-    const { updateExamAnalysis, finalizeExam } = await import('@/lib/db')
+    const { updateExamAnalysis, finalizeExam, updateExamBlog } = await import('@/lib/db')
+    const { generateBlogHtml } = await import('@/lib/blog-html')
     await updateExamAnalysis(examDbId, { ...data })
+    const finalBlog = blogHtml || generateBlogHtml({
+      subject: d.subject, grade: d.grade, school: d.school,
+      examYear: d.examYear, examTerm: d.examTerm,
+      keyFeatures: data.keyFeatures,
+      yearOverYearComparison: data.yearOverYearComparison,
+      killerQuestions: data.killerQuestions,
+      strategies: data.strategies,
+      questions: data.questions,
+    })
+    await updateExamBlog(examDbId, finalBlog)
     await finalizeExam(examDbId)
     setSaved(true)
     alert(`"${examTitle}" 분석이 완료되어 실장에게 전달됐습니다.`)
@@ -320,6 +334,31 @@ function AnalysisContent() {
               </svg>
               목록으로
             </Link>
+            <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg">
+              <button onClick={() => setView('analysis')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${view === 'analysis' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
+                분석
+              </button>
+              <button onClick={() => {
+                if (!blogHtml) {
+                  import('@/lib/blog-html').then(({ generateBlogHtml }) => {
+                    setBlogHtml(generateBlogHtml({
+                      subject: d.subject, grade: d.grade, school: d.school,
+                      examYear: d.examYear, examTerm: d.examTerm,
+                      keyFeatures: data.keyFeatures,
+                      yearOverYearComparison: data.yearOverYearComparison,
+                      killerQuestions: data.killerQuestions,
+                      strategies: data.strategies,
+                      questions: data.questions,
+                    }))
+                  })
+                }
+                setView('blog')
+              }}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${view === 'blog' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
+                블로그 미리보기
+              </button>
+            </div>
             <button onClick={handleSave}
               className="border border-gray-200 text-gray-600 text-sm px-4 py-2 rounded-xl hover:bg-gray-50 transition">
               {saved ? '저장됨 ✓' : '임시 저장'}
@@ -341,6 +380,67 @@ function AnalysisContent() {
           <p className="text-gray-500 text-sm mt-1">과목: {d.subject}</p>
         </div>
 
+        {/* 블로그 미리보기 모드 */}
+        {view === 'blog' && (
+          <>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500">네이버 블로그에 올릴 글을 미리보고 수정하세요. 수정 후 &quot;수정 완료 · 실장 전달&quot;을 누르면 실장에게 전달됩니다.</p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => {
+                  import('@/lib/blog-html').then(({ generateBlogHtml }) => {
+                    setBlogHtml(generateBlogHtml({
+                      subject: d.subject, grade: d.grade, school: d.school,
+                      examYear: d.examYear, examTerm: d.examTerm,
+                      keyFeatures: data.keyFeatures,
+                      yearOverYearComparison: data.yearOverYearComparison,
+                      killerQuestions: data.killerQuestions,
+                      strategies: data.strategies,
+                      questions: data.questions,
+                    }))
+                  })
+                }}
+                  className="text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition">
+                  분석 데이터로 재생성
+                </button>
+                <button onClick={() => setBlogEditing(!blogEditing)}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition ${blogEditing ? 'bg-green-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                  {blogEditing ? 'HTML 편집 닫기' : 'HTML 직접 편집'}
+                </button>
+                <button onClick={async () => {
+                  await navigator.clipboard.writeText(blogHtml)
+                  alert('HTML이 클립보드에 복사됐습니다!')
+                }}
+                  className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition">
+                  HTML 복사
+                </button>
+              </div>
+            </div>
+
+            {blogEditing && (
+              <textarea
+                value={blogHtml}
+                onChange={(e) => setBlogHtml(e.target.value)}
+                className="w-full h-[500px] font-mono text-xs text-gray-800 border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+              />
+            )}
+
+            <div className="bg-white rounded-2xl border border-gray-200 p-8">
+              <div
+                className="prose prose-gray max-w-none text-sm leading-relaxed
+                  [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-gray-900 [&_h1]:mb-4
+                  [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-gray-900 [&_h2]:mt-8 [&_h2]:mb-3
+                  [&_p]:text-gray-700 [&_p]:mb-3
+                  [&_ul]:space-y-1 [&_ul]:mb-4 [&_li]:text-gray-700
+                  [&_ol]:space-y-2 [&_ol]:mb-4
+                  [&_table]:w-full [&_table]:text-sm
+                  [&_strong]:font-semibold [&_strong]:text-gray-900"
+                dangerouslySetInnerHTML={{ __html: blogHtml }}
+              />
+            </div>
+          </>
+        )}
+
+        {view === 'analysis' && <>
         {/* ① 출제 현황 */}
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">📋 출제 현황</h2>
@@ -644,6 +744,7 @@ function AnalysisContent() {
             </button>
           </div>
         </div>
+        </>}
       </main>
     </div>
   )
