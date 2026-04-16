@@ -9,7 +9,7 @@ export async function login(userId: string, password: string) {
     .eq('user_id', userId)
     .single()
 
-  if (error || !data) return { error: '아이디 또는 비밀번호가 올바르지 않습니다.' }
+  if (error || !data) return { error: `로그인 실패: ${error?.message ?? '사용자를 찾을 수 없습니다.'}` }
   if (!data.is_approved) return { error: '관리자 승인 대기 중입니다.' }
   if (!data.is_active) return { error: '비활성화된 계정입니다.' }
 
