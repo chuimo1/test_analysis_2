@@ -121,6 +121,9 @@ function AnalysisContent() {
   const [blogHtml, setBlogHtml] = useState('')
   const [blogEditing, setBlogEditing] = useState(false)
   const [teacherComment, setTeacherComment] = useState('')
+  const [examMeta, setExamMeta] = useState<{ examScope: { category: string; detail: string }[]; expectedDifficulty: string; teacherNote: string }>({
+    examScope: [], expectedDifficulty: '', teacherNote: '',
+  })
 
   useEffect(() => {
     import('@/lib/db').then(({ getExamById }) => {
@@ -128,6 +131,11 @@ function AnalysisContent() {
         if (!exam?.analysis) return
         const parsed = exam.analysis as Record<string, unknown>
         setExamDbId(exam.id)
+        setExamMeta({
+          examScope: (exam.exam_scope as { category: string; detail: string }[]) ?? [],
+          expectedDifficulty: (exam.expected_difficulty as string) ?? '',
+          teacherNote: (exam.teacher_note as string) ?? '',
+        })
         const sanitized = {
           ...DUMMY,
           subject: exam.subject,
@@ -424,6 +432,31 @@ function AnalysisContent() {
                   </p>
                 </div>
 
+                {/* 출제 범위 */}
+                {examMeta.examScope.length > 0 && (
+                  <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                    <h2 className="text-lg font-bold text-gray-900 mb-4">📝 출제 범위</h2>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          <th className="text-left py-2.5 px-4 text-gray-500 font-medium text-xs w-28">구분</th>
+                          <th className="text-left py-2.5 px-4 text-gray-500 font-medium text-xs">상세 범위</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {examMeta.examScope.map((s, i) => (
+                          <tr key={i} className="border-b border-gray-50">
+                            <td className="py-2.5 px-4">
+                              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700">{s.category}</span>
+                            </td>
+                            <td className="py-2.5 px-4 text-sm text-gray-700">{s.detail || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+                )}
+
                 {/* 차트 4개 (분석탭과 동일) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <section className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -592,6 +625,54 @@ function AnalysisContent() {
         )}
 
         {view === 'analysis' && <>
+        {/* 시험 정보 + 출제 범위 */}
+        {(examMeta.examScope.length > 0 || examMeta.expectedDifficulty || examMeta.teacherNote) && (
+          <section className="bg-white rounded-2xl border border-gray-200 p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">📝 시험 정보</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              {examMeta.examScope.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">출제 범위</h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        <th className="text-left py-2 px-3 text-gray-500 font-medium text-xs w-24">구분</th>
+                        <th className="text-left py-2 px-3 text-gray-500 font-medium text-xs">상세</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {examMeta.examScope.map((s, i) => (
+                        <tr key={i} className="border-b border-gray-50">
+                          <td className="py-2 px-3">
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{s.category}</span>
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{s.detail || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="space-y-4">
+                {examMeta.expectedDifficulty && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-1">예상 난이도</h3>
+                    <span className={`text-sm font-medium px-3 py-1 rounded-full ${DIFF_BADGE[examMeta.expectedDifficulty] ?? 'bg-gray-100 text-gray-700'}`}>
+                      {examMeta.expectedDifficulty}
+                    </span>
+                  </div>
+                )}
+                {examMeta.teacherNote && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-1">강사 메모</h3>
+                    <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-4 py-3 whitespace-pre-wrap">{examMeta.teacherNote}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ① 출제 현황 */}
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">📋 출제 현황</h2>

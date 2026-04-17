@@ -77,9 +77,19 @@ export async function POST(req: NextRequest) {
 
     const subjectGuide = SUBJECT_PROMPT[subject] ?? ''
     const hasPrev = prevImageParts.length > 0
-    const scopeInfo = examScopeRaw ? `- 시험 범위: ${examScopeRaw}` : ''
-    const difficultyInfo = expectedDifficulty ? `- 예상 난이도: ${expectedDifficulty}` : ''
-    const noteInfo = teacherNote ? `- 강사 메모: ${teacherNote}` : ''
+    let scopeInfo = ''
+    if (examScopeRaw) {
+      try {
+        const parsed = JSON.parse(examScopeRaw) as { category: string; detail: string }[]
+        if (parsed.length > 0) {
+          scopeInfo = `- 시험 출제 범위:\n${parsed.map((s) => `  · [${s.category}] ${s.detail}`).join('\n')}\n  이 범위를 참고하여 각 문항의 출처(source)를 분류하세요.`
+        }
+      } catch {
+        scopeInfo = `- 시험 범위: ${examScopeRaw}`
+      }
+    }
+    const difficultyInfo = expectedDifficulty ? `- 강사 예상 난이도: ${expectedDifficulty} (이 정보를 참고하되, 실제 분석 결과는 객관적으로 판단하세요)` : ''
+    const noteInfo = teacherNote ? `- 강사 메모 (분석 시 참고): ${teacherNote}` : ''
 
     const baseContext = `당신은 학원 강사를 위한 시험 분석 전문가입니다.
 
