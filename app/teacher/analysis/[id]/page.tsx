@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer
@@ -41,13 +41,15 @@ const DUMMY = {
     '상 난이도 문항 3개 (20%), 전반적 어려운 편',
   ],
   examSummary: '',
+  aiDifficulty: '',
+  aiDifficultyReason: '',
   commonMistakes: [] as { area: string; description: string; tip: string }[],
   yearOverYearComparison: '전년도 대비 난이도 상승 (중 → 중상). 예상 평균점수 하락 (72점 → 65점). 서술형 비중 소폭 증가, 함의찾기 유형 신규 출제.',
 
   killerQuestions: [
-    { number: 8,  subUnit: '비문학',   intent: '함의찾기', difficulty: '상', rate: 48, reason: '다층적 의미 해석 + 유사 선택지 구성' },
-    { number: 14, subUnit: '비문학',   intent: '함의찾기', difficulty: '상', rate: 42, reason: '긴 지문 + 추론 능력 요구' },
-    { number: 12, subUnit: '고전시가', intent: '의미파악', difficulty: '상', rate: 45, reason: '고전 어휘 이해 + 시대적 맥락 파악 필요' },
+    { number: 8,  subUnit: '비문학',   intent: '함의찾기', difficulty: '상', rate: 48, reason: '다층적 의미 해석 + 유사 선택지 구성', solutionFiles: [] as { url: string; fileName: string; path: string }[] },
+    { number: 14, subUnit: '비문학',   intent: '함의찾기', difficulty: '상', rate: 42, reason: '긴 지문 + 추론 능력 요구', solutionFiles: [] as { url: string; fileName: string; path: string }[] },
+    { number: 12, subUnit: '고전시가', intent: '의미파악', difficulty: '상', rate: 45, reason: '고전 어휘 이해 + 시대적 맥락 파악 필요', solutionFiles: [] as { url: string; fileName: string; path: string }[] },
   ],
 
   strategies: [
@@ -158,6 +160,8 @@ function AnalysisContent() {
           })),
           keyFeatures: ((parsed.keyFeatures as string[]) ?? []).map((f) => String(f ?? '')),
           examSummary: String(parsed.examSummary ?? ''),
+          aiDifficulty: String(parsed.aiDifficulty ?? ''),
+          aiDifficultyReason: String(parsed.aiDifficultyReason ?? ''),
           commonMistakes: ((parsed.commonMistakes as Record<string, unknown>[]) ?? []).map((m) => ({
             area: (m.area as string) ?? '',
             description: (m.description as string) ?? '',
@@ -171,6 +175,7 @@ function AnalysisContent() {
             difficulty: (k.difficulty as string) ?? '상',
             rate: (k.rate as number) ?? 0,
             reason: (k.reason as string) ?? '',
+            solutionFiles: ((k.solutionFiles as { url: string; fileName: string; path: string }[]) ?? []),
           })),
           strategies: ((parsed.strategies as Record<string, unknown>[]) ?? []).map((s) => ({
             trend: (s.trend as string) ?? '',
@@ -274,6 +279,51 @@ function AnalysisContent() {
     }))
   }
 
+  const solutionInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
+  const [uploadingKillerIdx, setUploadingKillerIdx] = useState<number | null>(null)
+
+  async function handleSolutionUpload(killerIdx: number, files: FileList | null) {
+    if (!files || files.length === 0 || !examDbId) return
+    setUploadingKillerIdx(killerIdx)
+    try {
+      const { uploadSolutionFile } = await import('@/lib/db')
+      const qNum = data.killerQuestions[killerIdx].number
+      const newFiles: { url: string; fileName: string; path: string }[] = []
+      for (const file of Array.from(files)) {
+        const result = await uploadSolutionFile(examDbId, qNum, file)
+        if (result.url) {
+          newFiles.push({ url: result.url, fileName: result.fileName!, path: result.path! })
+        }
+      }
+      if (newFiles.length > 0) {
+        setData((prev) => {
+          const killerQuestions = prev.killerQuestions.map((k, i) =>
+            i === killerIdx ? { ...k, solutionFiles: [...k.solutionFiles, ...newFiles] } : k
+          )
+          return { ...prev, killerQuestions }
+        })
+      }
+    } finally {
+      setUploadingKillerIdx(null)
+    }
+  }
+
+  async function removeSolutionFile(killerIdx: number, fileIdx: number) {
+    const file = data.killerQuestions[killerIdx].solutionFiles[fileIdx]
+    if (file?.path) {
+      const { deleteSolutionFile } = await import('@/lib/db')
+      await deleteSolutionFile(file.path)
+    }
+    setData((prev) => {
+      const killerQuestions = prev.killerQuestions.map((k, i) =>
+        i === killerIdx
+          ? { ...k, solutionFiles: k.solutionFiles.filter((_, fi) => fi !== fileIdx) }
+          : k
+      )
+      return { ...prev, killerQuestions }
+    })
+  }
+
   function updateStrategy(idx: number, field: 'trend' | 'strategy', value: string) {
     setData((prev) => {
       const strategies = prev.strategies.map((s, i) =>
@@ -299,7 +349,7 @@ function AnalysisContent() {
         ...prev,
         killerQuestions: [
           ...prev.killerQuestions,
-          { number: 0, subUnit: '', intent: '', difficulty: '상' as const, rate: 0, reason: '' },
+          { number: 0, subUnit: '', intent: '', difficulty: '상' as const, rate: 0, reason: '', solutionFiles: [] },
         ],
       }
     })
@@ -466,6 +516,21 @@ function AnalysisContent() {
                     총 <strong>{data.questions.length}문항</strong> · 예상 평균정답률 <strong>{data.questions.length > 0 ? Math.round(data.questions.reduce((s, q) => s + q.expectedCorrectRate, 0) / data.questions.length) : 0}%</strong>
                   </p>
                 </div>
+
+                {/* AI 예측 난이도 */}
+                {data.aiDifficulty && (
+                  <div className="bg-indigo-50 rounded-2xl border border-indigo-200 p-6">
+                    <h2 className="text-lg font-bold text-indigo-900 mb-2">🤖 AI 예측 난이도</h2>
+                    <div className="flex items-center gap-4">
+                      <span className={`text-base font-bold px-4 py-1.5 rounded-xl ${DIFF_BADGE[data.aiDifficulty] ?? 'bg-gray-100 text-gray-700'}`}>
+                        {data.aiDifficulty}
+                      </span>
+                      {data.aiDifficultyReason && (
+                        <p className="text-sm text-indigo-800">{data.aiDifficultyReason}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* 출제 범위 */}
                 {examMeta.examScope.length > 0 && (
@@ -648,6 +713,19 @@ function AnalysisContent() {
                           {k.number}번 &nbsp;{k.subUnit} · {k.intent} · 예상정답률 {k.rate}%
                         </p>
                         <p className="text-sm text-gray-600">{k.reason}</p>
+                        {k.solutionFiles.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {k.solutionFiles.map((f, fi) => (
+                              <a key={fi} href={f.url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-indigo-600 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 hover:bg-indigo-50">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                </svg>
+                                {f.fileName}
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -728,6 +806,34 @@ function AnalysisContent() {
                   </div>
                 )}
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* AI 예측 난이도 */}
+        {data.aiDifficulty && (
+          <section className="bg-white rounded-2xl border border-gray-200 p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">🤖 AI 예측 난이도</h2>
+            <div className="flex items-start gap-6">
+              <div className="flex flex-col items-center gap-2">
+                <span className={`text-lg font-bold px-5 py-2 rounded-xl ${DIFF_BADGE[data.aiDifficulty] ?? 'bg-gray-100 text-gray-700'}`}>
+                  {data.aiDifficulty}
+                </span>
+                <span className="text-xs text-gray-400">AI 분석 기반</span>
+              </div>
+              {examMeta.expectedDifficulty && (
+                <div className="flex flex-col items-center gap-2">
+                  <span className={`text-lg font-bold px-5 py-2 rounded-xl ${DIFF_BADGE[examMeta.expectedDifficulty] ?? 'bg-gray-100 text-gray-700'}`}>
+                    {examMeta.expectedDifficulty}
+                  </span>
+                  <span className="text-xs text-gray-400">강사 예상</span>
+                </div>
+              )}
+              {data.aiDifficultyReason && (
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-4 py-3 leading-relaxed">{data.aiDifficultyReason}</p>
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -1038,10 +1144,40 @@ function AnalysisContent() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
-                  <button className="text-xs text-indigo-600 hover:underline whitespace-nowrap">
-                    + 손풀이
+                  <button onClick={() => solutionInputRefs.current[i]?.click()}
+                    disabled={uploadingKillerIdx === i}
+                    className="text-xs text-indigo-600 hover:underline whitespace-nowrap disabled:opacity-50">
+                    {uploadingKillerIdx === i ? '업로드 중...' : '+ 손풀이'}
                   </button>
+                  <input
+                    ref={(el) => { solutionInputRefs.current[i] = el }}
+                    type="file"
+                    accept="image/*,.pdf,.ppt,.pptx"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => { handleSolutionUpload(i, e.target.files); e.target.value = '' }}
+                  />
                 </div>
+                {/* 업로드된 손풀이 파일 목록 */}
+                {k.solutionFiles.length > 0 && (
+                  <div className="col-span-full mt-2 space-y-1">
+                    {k.solutionFiles.map((f, fi) => (
+                      <div key={fi} className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 text-xs">
+                        <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        <a href={f.url} target="_blank" rel="noopener noreferrer"
+                          className="text-indigo-600 hover:underline truncate max-w-[180px]">{f.fileName}</a>
+                        <button onClick={() => removeSolutionFile(i, fi)} title="삭제"
+                          className="text-gray-400 hover:text-red-500 shrink-0">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )})}
             {data.killerQuestions.length < 5 && (

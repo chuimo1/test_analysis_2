@@ -14,6 +14,7 @@ export default function AdminPostPage() {
   const [meta, setMeta] = useState({ teacher: '', date: '', title: '', status: '' })
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [solutionFiles, setSolutionFiles] = useState<{ questionNumber: number; files: { url: string; fileName: string }[] }[]>([])
 
   useEffect(() => {
     getExamById(id).then((exam) => {
@@ -26,6 +27,14 @@ export default function AdminPostPage() {
         title: `${exam.exam_year}년 ${exam.school} ${exam.grade} ${exam.exam_term} ${exam.subject}`,
         status: exam.blog_published_at ? '발행 완료' : exam.is_finalized ? '수정 완료' : '수정 중',
       })
+
+      if (a) {
+        const killers = (a.killerQuestions as { number: number; solutionFiles?: { url: string; fileName: string }[] }[]) ?? []
+        const sols = killers
+          .filter((k) => k.solutionFiles && k.solutionFiles.length > 0)
+          .map((k) => ({ questionNumber: k.number, files: k.solutionFiles! }))
+        setSolutionFiles(sols)
+      }
 
       if (exam.blog_content) {
         setBlogHtml(exam.blog_content)
@@ -159,6 +168,30 @@ export default function AdminPostPage() {
             />
           )}
         </div>
+
+        {solutionFiles.length > 0 && (
+          <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
+            <h2 className="text-base font-bold text-gray-900 mb-4">📎 손풀이 자료</h2>
+            <div className="space-y-3">
+              {solutionFiles.map((sq, i) => (
+                <div key={i}>
+                  <p className="text-sm font-semibold text-gray-700 mb-1">{sq.questionNumber}번 문항</p>
+                  <div className="flex flex-wrap gap-2">
+                    {sq.files.map((f, fi) => (
+                      <a key={fi} href={f.url} target="_blank" rel="noopener noreferrer" download
+                        className="inline-flex items-center gap-2 text-sm text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-100 transition border border-indigo-200">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        {f.fileName}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 flex justify-center gap-3">
           <button onClick={handleCopy}

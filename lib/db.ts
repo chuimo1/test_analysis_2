@@ -152,6 +152,29 @@ export async function finalizeExam(id: string) {
   await supabase.from('exams').update({ is_finalized: true }).eq('id', id)
 }
 
+// ── Solution Files (손풀이) ──
+
+export async function uploadSolutionFile(examId: string, questionNumber: number, file: File) {
+  const ext = file.name.split('.').pop() ?? 'bin'
+  const path = `solutions/${examId}/q${questionNumber}_${Date.now()}.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('exam-files')
+    .upload(path, file, { upsert: true })
+
+  if (uploadError) return { error: uploadError.message }
+
+  const { data: urlData } = supabase.storage
+    .from('exam-files')
+    .getPublicUrl(path)
+
+  return { url: urlData.publicUrl, fileName: file.name, path }
+}
+
+export async function deleteSolutionFile(path: string) {
+  await supabase.storage.from('exam-files').remove([path])
+}
+
 // ── Subject Change Requests ──
 
 export async function getSubjectChangeRequests() {
