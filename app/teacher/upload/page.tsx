@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Subject, Grade, Difficulty, ExamScopeItem, SourceCategory } from '@/lib/types'
 import { createExam } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 const GRADES: Grade[] = ['중1', '중2', '중3', '고1', '고2', '고3']
 const TERMS = ['1학기 중간고사', '1학기 기말고사', '2학기 중간고사', '2학기 기말고사', '모의고사']
@@ -125,19 +126,37 @@ export default function UploadPage() {
     setLoading(true)
 
     try {
-      const apiForm = new FormData()
-      apiForm.append('subject', form.subject)
-      apiForm.append('grade', form.grade)
-      apiForm.append('school', form.school)
-      apiForm.append('examYear', form.examYear)
-      apiForm.append('examTerm', form.examTerm)
-      apiForm.append('expectedDifficulty', form.expectedDifficulty)
-      if (form.teacherNote) apiForm.append('teacherNote', form.teacherNote)
-      if (examScope.length > 0) apiForm.append('examScope', JSON.stringify(examScope))
-      apiForm.append('currentImage', currentImages[0])
-      prevImages.forEach((f) => apiForm.append('prevImages', f))
+      async function uploadToStorage(file: File, folder: string): Promise<string> {
+        const ext = file.name.split('.').pop() ?? 'jpg'
+        const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+        const { error } = await supabase.storage.from('exam-files').upload(path, file, { upsert: true })
+        if (error) throw new Error(`업로드 실패: ${error.message}`)
+        const { data } = supabase.storage.from('exam-files').getPublicUrl(path)
+        return data.publicUrl
+      }
 
-      const res = await fetch('/api/analyze', { method: 'POST', body: apiForm })
+      const currentImageUrl = await uploadToStorage(currentImages[0], 'temp-exams')
+      const prevImageUrls: string[] = []
+      for (const f of prevImages) {
+        prevImageUrls.push(await uploadToStorage(f, 'temp-exams'))
+      }
+
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: form.subject,
+          grade: form.grade,
+          school: form.school,
+          examYear: form.examYear,
+          examTerm: form.examTerm,
+          expectedDifficulty: form.expectedDifficulty,
+          teacherNote: form.teacherNote || undefined,
+          examScope: examScope.length > 0 ? JSON.stringify(examScope) : undefined,
+          currentImageUrl,
+          prevImageUrls,
+        }),
+      })
       if (!res.ok) {
         const { error } = await res.json()
         setError(error || '분석 중 오류가 발생했습니다.')

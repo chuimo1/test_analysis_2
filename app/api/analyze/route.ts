@@ -4,8 +4,6 @@ import { NextRequest, NextResponse } from 'next/server'
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-export const fetchCache = 'force-no-store'
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 const SUBJECT_PROMPT: Record<string, string> = {
@@ -44,39 +42,39 @@ async function runStage(
   throw lastError
 }
 
+async function urlToBase64(url: string): Promise<{ data: string; mimeType: string }> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`이미지 다운로드 실패: ${res.status}`)
+  const buf = await res.arrayBuffer()
+  const mimeType = res.headers.get('content-type') || 'image/jpeg'
+  return { data: Buffer.from(buf).toString('base64'), mimeType }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData()
-    const subject = formData.get('subject') as string
-    const grade = formData.get('grade') as string
-    const school = formData.get('school') as string
-    const examYear = formData.get('examYear') as string
-    const examTerm = formData.get('examTerm') as string
-    const expectedDifficulty = formData.get('expectedDifficulty') as string | null
-    const teacherNote = formData.get('teacherNote') as string | null
-    const examScopeRaw = formData.get('examScope') as string | null
-    const currentImage = formData.get('currentImage') as File
-    const prevImages = formData.getAll('prevImages') as File[]
+    const body = await req.json()
+    const {
+      subject, grade, school, examYear, examTerm,
+      expectedDifficulty, teacherNote, examScope: examScopeRaw,
+      currentImageUrl, prevImageUrls,
+    } = body as {
+      subject: string; grade: string; school: string
+      examYear: string; examTerm: string
+      expectedDifficulty?: string; teacherNote?: string; examScope?: string
+      currentImageUrl: string; prevImageUrls: string[]
+    }
 
-    if (!currentImage) {
+    if (!currentImageUrl) {
       return NextResponse.json({ error: '시험지 이미지가 없습니다.' }, { status: 400 })
     }
 
-    const imageBuffer = await currentImage.arrayBuffer()
-    const imageBase64 = Buffer.from(imageBuffer).toString('base64')
-    const imageMimeType = currentImage.type || 'image/jpeg'
+    const currentImg = await urlToBase64(currentImageUrl)
 
-    const prevImageParts: ImagePart[] = await Promise.all(
-      prevImages.map(async (file) => {
-        const buf = await file.arrayBuffer()
-        return {
-          inlineData: {
-            data: Buffer.from(buf).toString('base64'),
-            mimeType: file.type || 'image/jpeg',
-          },
-        }
-      })
-    )
+    const prevImageParts: ImagePart[] = []
+    for (const url of (prevImageUrls ?? [])) {
+      const img = await urlToBase64(url)
+      prevImageParts.push({ inlineData: img })
+    }
 
     const model = genAI.getGenerativeModel({ model: 'models/gemini-3-flash-preview' })
 
@@ -121,13 +119,10 @@ ${preAnalysisBlock}
 첫 번째 이미지는 분석할 시험지입니다.${hasPrev ? ' 이후 이미지들은 전년도 시험지입니다.' : ''}`
 
     const imageParts: (ImagePart | { text: string })[] = [
-      { inlineData: { data: imageBase64, mimeType: imageMimeType } },
+      { inlineData: { data: currentImg.data, mimeType: currentImg.mimeType } },
       ...prevImageParts,
       { text: baseContext },
     ]
-
-    // 4단계 분리: 문제 → 총평 → 킬러 → 전략
-    // 부분 성공도 저장, 실패 부분만 재시도
 
     const stagePrompts = [
       {
