@@ -40,6 +40,8 @@ const DUMMY = {
     '비문학 출제 비중 증가 (5문항)',
     '상 난이도 문항 3개 (20%), 전반적 어려운 편',
   ],
+  examSummary: '',
+  commonMistakes: [] as { area: string; description: string; tip: string }[],
   yearOverYearComparison: '전년도 대비 난이도 상승 (중 → 중상). 예상 평균점수 하락 (72점 → 65점). 서술형 비중 소폭 증가, 함의찾기 유형 신규 출제.',
 
   killerQuestions: [
@@ -155,6 +157,12 @@ function AnalysisContent() {
             score: (q.score as string) ?? '-',
           })),
           keyFeatures: ((parsed.keyFeatures as string[]) ?? []).map((f) => String(f ?? '')),
+          examSummary: String(parsed.examSummary ?? ''),
+          commonMistakes: ((parsed.commonMistakes as Record<string, unknown>[]) ?? []).map((m) => ({
+            area: (m.area as string) ?? '',
+            description: (m.description as string) ?? '',
+            tip: (m.tip as string) ?? '',
+          })),
           yearOverYearComparison: String(parsed.yearOverYearComparison ?? ''),
           killerQuestions: ((parsed.killerQuestions as Record<string, unknown>[]) ?? []).map((k) => ({
             number: (k.number as number) ?? 0,
@@ -237,6 +245,33 @@ function AnalysisContent() {
 
   function updateYearOverYear(value: string) {
     setData((prev) => ({ ...prev, yearOverYearComparison: value }))
+  }
+
+  function updateExamSummary(value: string) {
+    setData((prev) => ({ ...prev, examSummary: value }))
+  }
+
+  function updateCommonMistake(idx: number, field: 'area' | 'description' | 'tip', value: string) {
+    setData((prev) => {
+      const commonMistakes = prev.commonMistakes.map((m, i) =>
+        i === idx ? { ...m, [field]: value } : m
+      )
+      return { ...prev, commonMistakes }
+    })
+  }
+
+  function addCommonMistake() {
+    setData((prev) => ({
+      ...prev,
+      commonMistakes: [...prev.commonMistakes, { area: '', description: '', tip: '' }],
+    }))
+  }
+
+  function removeCommonMistake(idx: number) {
+    setData((prev) => ({
+      ...prev,
+      commonMistakes: prev.commonMistakes.filter((_, i) => i !== idx),
+    }))
   }
 
   function updateStrategy(idx: number, field: 'trend' | 'strategy', value: string) {
@@ -573,6 +608,30 @@ function AnalysisContent() {
                   </ul>
                 </section>
 
+                {/* 종합 총평 */}
+                {data.examSummary && (
+                  <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                    <h2 className="text-lg font-bold text-gray-900 mb-3">📝 종합 총평</h2>
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{data.examSummary}</p>
+                  </section>
+                )}
+
+                {/* 학생 실수 포인트 */}
+                {data.commonMistakes.length > 0 && (
+                  <section className="bg-white rounded-2xl border border-gray-200 p-6">
+                    <h2 className="text-lg font-bold text-gray-900 mb-4">⚠️ 학생 실수 포인트</h2>
+                    <div className="space-y-3">
+                      {data.commonMistakes.map((m, i) => (
+                        <div key={i} className="border-l-4 border-amber-400 bg-amber-50 rounded-r-xl p-4">
+                          <p className="text-sm font-semibold text-amber-700 mb-1">{m.area}</p>
+                          <p className="text-sm text-gray-600 mb-2">{m.description}</p>
+                          <p className="text-xs text-amber-600 font-medium">💡 {m.tip}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 {/* 전년도 비교 */}
                 <section className="bg-gray-50 rounded-2xl border border-gray-200 p-6">
                   <h2 className="text-lg font-bold text-gray-900 mb-3">📈 전년도 비교</h2>
@@ -878,6 +937,61 @@ function AnalysisContent() {
               <textarea value={data.yearOverYearComparison} onChange={(e) => updateYearOverYear(e.target.value)}
                 rows={6}
                 className="text-sm text-gray-600 border border-gray-200 rounded-xl px-3 py-2 w-full leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
+            </div>
+          </div>
+
+          {/* 종합 총평 */}
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">종합 총평</h3>
+            <textarea value={data.examSummary} onChange={(e) => updateExamSummary(e.target.value)}
+              rows={4}
+              placeholder="시험 전체에 대한 종합 총평을 작성하세요. 난이도 수준, 출제 경향, 변별력 포인트 등을 포함합니다."
+              className="text-sm text-gray-600 border border-gray-200 rounded-xl px-3 py-2 w-full leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
+          </div>
+
+          {/* 학생 실수 포인트 */}
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">학생 실수 포인트</h3>
+              <span className="text-xs text-gray-400">{data.commonMistakes.length}개</span>
+            </div>
+            <div className="space-y-3">
+              {data.commonMistakes.map((m, i) => (
+                <div key={i} className="bg-amber-50 rounded-xl p-4 relative">
+                  <button onClick={() => removeCommonMistake(i)} title="삭제"
+                    className="absolute top-3 right-3 w-6 h-6 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-100 transition flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                  <div className="space-y-2 pr-8">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-amber-600 whitespace-nowrap">영역</span>
+                      <input value={m.area} onChange={(e) => updateCommonMistake(i, 'area', e.target.value)}
+                        placeholder="실수가 많은 영역/단원"
+                        className="text-xs border border-amber-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white" />
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-semibold text-amber-600 whitespace-nowrap mt-1.5">설명</span>
+                      <textarea value={m.description} onChange={(e) => updateCommonMistake(i, 'description', e.target.value)}
+                        placeholder="학생들이 구체적으로 어떤 실수를 하는지"
+                        rows={2}
+                        className="text-xs border border-amber-200 rounded-lg px-2 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white resize-y leading-relaxed" />
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-semibold text-amber-600 whitespace-nowrap mt-1.5">팁</span>
+                      <textarea value={m.tip} onChange={(e) => updateCommonMistake(i, 'tip', e.target.value)}
+                        placeholder="실수 방지를 위한 구체적 팁"
+                        rows={2}
+                        className="text-xs border border-amber-200 rounded-lg px-2 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white resize-y leading-relaxed" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button onClick={addCommonMistake} type="button"
+                className="w-full border-2 border-dashed border-amber-200 rounded-xl py-3 text-sm text-amber-500 hover:bg-amber-50 hover:border-amber-300 transition">
+                + 실수 포인트 추가
+              </button>
             </div>
           </div>
         </section>

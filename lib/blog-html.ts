@@ -13,6 +13,12 @@ interface BlogData {
     rate: number
     reason: string
   }[]
+  examSummary?: string
+  commonMistakes?: {
+    area: string
+    description: string
+    tip: string
+  }[]
   strategies: {
     trend: string
     strategy: string
@@ -185,6 +191,18 @@ ${questionsTable(data.questions)}
 <ul style="padding-left:20px">
 ${featuresHtml}
 </ul>
+
+${data.examSummary ? `<h2 style="color:#1e1b4b;margin-top:32px">📝 종합 총평</h2>
+<div style="background:#f8fafc;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e2e8f0">
+  <p style="margin:0;line-height:1.8;color:#333;font-size:15px">${data.examSummary}</p>
+</div>` : ''}
+
+${data.commonMistakes && data.commonMistakes.length > 0 ? `<h2 style="color:#1e1b4b;margin-top:32px">⚠️ 학생 실수 포인트</h2>
+${data.commonMistakes.map((m) => `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 16px;margin:10px 0;border-radius:0 8px 8px 0">
+  <p style="margin:0 0 4px 0"><strong style="color:#b45309;font-size:15px">${m.area}</strong></p>
+  <p style="margin:0 0 6px 0;color:#555;font-size:14px">${m.description}</p>
+  <p style="margin:0;color:#d97706;font-size:13px;font-weight:600">💡 ${m.tip}</p>
+</div>`).join('\n')}` : ''}
 
 <h2 style="color:#1e1b4b;margin-top:32px">📈 전년도 비교</h2>
 <div style="background:#f8fafc;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e2e8f0">
