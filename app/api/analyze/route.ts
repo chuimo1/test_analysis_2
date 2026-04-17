@@ -1,6 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+
+export const fetchCache = 'force-no-store'
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 const SUBJECT_PROMPT: Record<string, string> = {

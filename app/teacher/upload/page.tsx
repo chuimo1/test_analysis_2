@@ -65,18 +65,40 @@ export default function UploadPage() {
   const currentInputRef = useRef<HTMLInputElement>(null)
   const prevInputRef = useRef<HTMLInputElement>(null)
 
+  function compressImage(file: File, maxSize = 1600): Promise<File> {
+    if (file.type === 'application/pdf') return Promise.resolve(file)
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob((blob) => {
+          resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file)
+        }, 'image/jpeg', 0.8)
+      }
+      img.onerror = () => resolve(file)
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  function handleCurrentImages(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    setCurrentImages(files.slice(0, 1)) // 분석할 시험지는 1장
+  async function handleCurrentImages(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).slice(0, 1)
+    const compressed = await Promise.all(files.map((f) => compressImage(f)))
+    setCurrentImages(compressed)
   }
 
-  function handlePrevImages(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    setPrevImages(files.slice(0, 3)) // 최대 3개
+  async function handlePrevImages(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).slice(0, 3)
+    const compressed = await Promise.all(files.map((f) => compressImage(f)))
+    setPrevImages(compressed)
   }
 
   function removeCurrentImage(idx: number) {
