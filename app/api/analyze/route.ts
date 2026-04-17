@@ -93,11 +93,11 @@ export async function POST(req: NextRequest) {
 
     const preAnalysisBlock = (scopeInfo || difficultyInfo || noteInfo)
       ? `
-[중요] 강사가 사전에 입력한 정보입니다. 반드시 분석에 반영하세요:
+[중요] 강사가 사전에 입력한 정보입니다. 반드시 참고하여 분석하세요:
 ${scopeInfo}
 ${difficultyInfo}
 ${noteInfo}
-위 사전 정보를 바탕으로 각 문항의 출처, 단원 분류, 난이도 판단에 적극 활용하세요.`
+위 사전 정보를 참고하여 각 문항의 출처, 단원 분류, 난이도 판단에 적극 활용하세요.`
       : ''
 
     const baseContext = `당신은 학원 강사를 위한 시험 분석 전문가입니다.
