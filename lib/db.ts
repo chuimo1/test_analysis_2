@@ -85,6 +85,23 @@ export async function toggleUserActive(id: string, isActive: boolean) {
   await supabase.from('users').update({ is_active: isActive }).eq('id', id)
 }
 
+export async function deleteUser(id: string) {
+  await supabase.from('exams').delete().eq('teacher_id', id)
+  await supabase.from('subject_change_requests').delete().eq('user_id', id)
+  await supabase.from('users').delete().eq('id', id)
+}
+
+export async function resetUserPassword(id: string) {
+  await supabase.from('users').update({ password_hash: '00000000' }).eq('id', id)
+}
+
+export async function updateUserProfile(id: string, data: { phone?: string; password?: string }) {
+  const update: Record<string, string> = {}
+  if (data.phone) update.phone = data.phone
+  if (data.password) update.password_hash = data.password
+  await supabase.from('users').update(update).eq('id', id)
+}
+
 // ── Exams ──
 
 export async function createExam(exam: {

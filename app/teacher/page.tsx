@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Subject } from '@/lib/types'
-import { getExams } from '@/lib/db'
-import { supabase } from '@/lib/supabase'
+import { getExams, updateUserProfile } from '@/lib/db'
 
 const SUBJECT_STYLE: Record<string, string> = {
   국어: 'bg-blue-100 text-blue-700',
@@ -14,17 +13,15 @@ const SUBJECT_STYLE: Record<string, string> = {
   사회: 'bg-orange-100 text-orange-700',
 }
 
-const SUBJECTS: Subject[] = ['국어', '영어', '수학', '사회']
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export default function TeacherDashboard() {
   const router = useRouter()
   const [exams, setExams] = useState<any[]>([])
-  const [currentUser, setCurrentUser] = useState<{ id: string; userId: string; name: string; subject: Subject } | null>(null)
-  const [showChangeModal, setShowChangeModal] = useState(false)
-  const [newSubject, setNewSubject] = useState<Subject | ''>('')
-  const [changeRequested, setChangeRequested] = useState(false)
+  const [currentUser, setCurrentUser] = useState<{ id: string; userId: string; name: string; subject: Subject; phone?: string } | null>(null)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [profileForm, setProfileForm] = useState({ phone: '', password: '', passwordConfirm: '' })
+  const [profileMsg, setProfileMsg] = useState('')
 
   useEffect(() => {
     const user = localStorage.getItem('currentUser')
@@ -32,26 +29,44 @@ export default function TeacherDashboard() {
       try {
         const parsed = JSON.parse(user)
         setCurrentUser(parsed)
+        setProfileForm((prev) => ({ ...prev, phone: parsed.phone ?? '' }))
         getExams(parsed.id).then(setExams)
       } catch { /* ignore */ }
     }
   }, [])
 
-  async function handleSubjectChangeRequest() {
-    if (!newSubject || !currentUser) return
-    await supabase.from('subject_change_requests').insert({
-      user_id: currentUser.id,
-      current_subject: currentUser.subject,
-      requested_subject: newSubject,
-    })
-    setShowChangeModal(false)
-    setNewSubject('')
-    setChangeRequested(true)
+  async function handleProfileSave() {
+    if (!currentUser) return
+    setProfileMsg('')
+
+    if (profileForm.password && profileForm.password.length < 8) {
+      setProfileMsg('비밀번호는 8자 이상이어야 합니다.')
+      return
+    }
+    if (profileForm.password && profileForm.password !== profileForm.passwordConfirm) {
+      setProfileMsg('비밀번호가 일치하지 않습니다.')
+      return
+    }
+
+    const update: { phone?: string; password?: string } = {}
+    if (profileForm.phone) update.phone = profileForm.phone
+    if (profileForm.password) update.password = profileForm.password
+
+    await updateUserProfile(currentUser.id, update)
+
+    if (update.phone) {
+      const stored = JSON.parse(localStorage.getItem('currentUser') ?? '{}')
+      stored.phone = update.phone
+      localStorage.setItem('currentUser', JSON.stringify(stored))
+    }
+
+    setProfileMsg('저장되었습니다.')
+    setProfileForm((prev) => ({ ...prev, password: '', passwordConfirm: '' }))
+    setTimeout(() => setProfileMsg(''), 2000)
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -64,23 +79,17 @@ export default function TeacherDashboard() {
           </div>
           <div className="flex items-center gap-4">
             {currentUser?.subject && (
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${SUBJECT_STYLE[currentUser.subject] ?? 'bg-gray-100 text-gray-700'}`}>
-                  {currentUser.subject}
-                </span>
-                <button
-                  onClick={() => { setShowChangeModal(true); setChangeRequested(false) }}
-                  className="text-xs text-gray-400 hover:text-indigo-600 transition underline underline-offset-2"
-                >
-                  과목 변경 신청
-                </button>
-              </div>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${SUBJECT_STYLE[currentUser.subject] ?? 'bg-gray-100 text-gray-700'}`}>
+                {currentUser.subject}
+              </span>
             )}
-            <span className="text-sm text-gray-500">{currentUser?.userId ?? '강사'}</span>
-            <button
-              onClick={() => { localStorage.removeItem('currentUser'); router.push('/login') }}
-              className="text-sm text-gray-400 hover:text-gray-600 transition"
-            >
+            <button onClick={() => setShowProfileModal(true)}
+              className="text-xs text-gray-400 hover:text-indigo-600 transition underline underline-offset-2">
+              개인정보 수정
+            </button>
+            <span className="text-sm text-gray-500">{currentUser?.name ?? '강사'}</span>
+            <button onClick={() => { localStorage.removeItem('currentUser'); router.push('/login') }}
+              className="text-sm text-gray-400 hover:text-gray-600 transition">
               로그아웃
             </button>
           </div>
@@ -88,16 +97,13 @@ export default function TeacherDashboard() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
-        {/* 상단 타이틀 + 업로드 버튼 */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">시험 분석 목록</h1>
             <p className="text-gray-500 text-sm mt-1">시험지를 업로드하여 AI 분석을 시작하세요</p>
           </div>
-          <Link
-            href="/teacher/upload"
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-5 rounded-xl transition text-sm"
-          >
+          <Link href="/teacher/upload"
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-5 rounded-xl transition text-sm">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -105,7 +111,6 @@ export default function TeacherDashboard() {
           </Link>
         </div>
 
-        {/* 시험 목록 */}
         {exams.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -121,11 +126,8 @@ export default function TeacherDashboard() {
         ) : (
           <div className="space-y-3">
             {exams.map((exam) => (
-              <Link
-                key={exam.id}
-                href={`/teacher/analysis/${exam.id}`}
-                className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-6 py-5 hover:border-indigo-300 hover:shadow-sm transition group"
-              >
+              <Link key={exam.id} href={`/teacher/analysis/${exam.id}`}
+                className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-6 py-5 hover:border-indigo-300 hover:shadow-sm transition group">
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${SUBJECT_STYLE[exam.subject] ?? 'bg-gray-100 text-gray-700'}`}>
                     {exam.subject}
@@ -138,12 +140,8 @@ export default function TeacherDashboard() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-xs font-medium px-3 py-1 rounded-full ${
-                    exam.is_finalized
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-yellow-100 text-yellow-700'
-                  }`}>
-                    {exam.is_finalized ? '수정 완료' : '수정 중'}
+                  <span className={`text-xs font-medium px-3 py-1 rounded-full ${exam.is_finalized ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {exam.is_finalized ? '제출 완료' : '수정 중'}
                   </span>
                   <svg className="w-4 h-4 text-gray-300 group-hover:text-indigo-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -155,48 +153,38 @@ export default function TeacherDashboard() {
         )}
       </main>
 
-      {/* 담당과목 변경 신청 모달 */}
-      {showChangeModal && (
+      {showProfileModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-base font-bold text-gray-900 mb-1">담당 과목 변경 신청</h3>
-            <p className="text-xs text-gray-400 mb-5">관리자 승인 후 변경됩니다.</p>
-            <div className="mb-2">
-              <p className="text-xs text-gray-500 mb-1">현재 과목</p>
-              <span className={`text-sm font-semibold px-3 py-1 rounded-full ${SUBJECT_STYLE[currentUser?.subject ?? ''] ?? 'bg-gray-100 text-gray-700'}`}>
-                {currentUser?.subject}
-              </span>
-            </div>
-            <div className="mt-4 mb-5">
-              <label className="text-xs text-gray-500 block mb-1.5">변경할 과목</label>
-              <div className="flex gap-2 flex-wrap">
-                {SUBJECTS.filter((s) => s !== currentUser?.subject).map((s) => (
-                  <button key={s} type="button"
-                    onClick={() => setNewSubject(s)}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium border transition ${
-                      newSubject === s
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}>
-                    {s}
-                  </button>
-                ))}
+            <h3 className="text-base font-bold text-gray-900 mb-4">개인정보 수정</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">연락처</label>
+                <input value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                  placeholder="010-0000-0000"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">새 비밀번호</label>
+                <input type="password" value={profileForm.password} onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
+                  placeholder="변경 시에만 입력 (8자 이상)"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">비밀번호 확인</label>
+                <input type="password" value={profileForm.passwordConfirm} onChange={(e) => setProfileForm({ ...profileForm, passwordConfirm: e.target.value })}
+                  placeholder="비밀번호 재입력"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              {profileMsg && (
+                <p className={`text-xs px-3 py-2 rounded-xl ${profileMsg.includes('저장') ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'}`}>{profileMsg}</p>
+              )}
             </div>
-            {changeRequested && (
-              <p className="text-xs text-green-600 bg-green-50 px-3 py-2 rounded-xl mb-4">
-                변경 신청이 완료됐습니다. 관리자 승인을 기다려주세요.
-              </p>
-            )}
-            <div className="flex gap-2">
-              <button onClick={() => setShowChangeModal(false)}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl hover:bg-gray-50 transition">
-                취소
-              </button>
-              <button onClick={handleSubjectChangeRequest} disabled={!newSubject}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-sm font-medium rounded-xl transition">
-                신청
-              </button>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => { setShowProfileModal(false); setProfileMsg('') }}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl hover:bg-gray-50 transition">취소</button>
+              <button onClick={handleProfileSave}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition">저장</button>
             </div>
           </div>
         </div>

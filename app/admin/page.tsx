@@ -5,9 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   getPendingSignups, approveUser, rejectUser,
-  getTeachers, toggleUserActive,
+  getTeachers, toggleUserActive, deleteUser, resetUserPassword,
   getExams,
-  getSubjectChangeRequests, processSubjectChange,
 } from '@/lib/db'
 
 const SUBJECT_STYLE: Record<string, string> = {
@@ -17,7 +16,7 @@ const SUBJECT_STYLE: Record<string, string> = {
   사회: 'bg-orange-100 text-orange-700',
 }
 
-type Tab = 'posts' | 'pending' | 'subject' | 'teachers'
+type Tab = 'posts' | 'pending' | 'teachers'
 type PostStatus = 'waiting' | 'editing' | 'published'
 
 export default function AdminDashboard() {
@@ -28,22 +27,19 @@ export default function AdminDashboard() {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const [exams, setExams] = useState<any[]>([])
   const [pendingSignups, setPendingSignups] = useState<any[]>([])
-  const [subjectRequests, setSubjectRequests] = useState<any[]>([])
   const [teachers, setTeachers] = useState<any[]>([])
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   const [filter, setFilter] = useState({ school: '', grade: '', subject: '', examYear: '', examTerm: '' })
 
   const loadData = useCallback(async () => {
-    const [e, p, s, t] = await Promise.all([
+    const [e, p, t] = await Promise.all([
       getExams(),
       getPendingSignups(),
-      getSubjectChangeRequests(),
       getTeachers(),
     ])
     setExams(e)
     setPendingSignups(p)
-    setSubjectRequests(s)
     setTeachers(t)
   }, [])
 
@@ -59,14 +55,21 @@ export default function AdminDashboard() {
     loadData()
   }
 
-  async function handleSubjectChange(id: string, approve: boolean) {
-    await processSubjectChange(id, approve)
-    loadData()
-  }
-
   async function handleToggleActive(id: string, currentActive: boolean) {
     await toggleUserActive(id, !currentActive)
     loadData()
+  }
+
+  async function handleDeleteUser(id: string, name: string) {
+    if (!confirm(`"${name}" 강사 계정을 삭제하시겠습니까? 해당 강사의 모든 시험 분석 데이터도 삭제됩니다.`)) return
+    await deleteUser(id)
+    loadData()
+  }
+
+  async function handleResetPassword(id: string, name: string) {
+    if (!confirm(`"${name}" 강사의 비밀번호를 초기화(00000000)하시겠습니까?`)) return
+    await resetUserPassword(id)
+    alert(`${name} 강사의 비밀번호가 00000000으로 초기화되었습니다.`)
   }
 
   const filteredExams = exams.filter((e) => {
@@ -109,7 +112,6 @@ export default function AdminDashboard() {
           {([
             ['posts', '시험 분석 목록', waiting.length],
             ['pending', '가입 승인', pendingSignups.length],
-            ['subject', '과목 변경', subjectRequests.length],
             ['teachers', '강사 관리', 0],
           ] as const).map(([key, label, badge]) => (
             <button key={key} onClick={() => setTab(key)}
@@ -126,7 +128,7 @@ export default function AdminDashboard() {
           <div className="space-y-4">
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
               {([
-                ['waiting', `🔴 발행 대기 (${waiting.length})`],
+                ['waiting', `🔴 제출 완료 (${waiting.length})`],
                 ['editing', `🟡 수정 중 (${editing.length})`],
                 ['published', `✅ 발행 완료 (${published.length})`],
               ] as const).map(([key, label]) => (
@@ -181,11 +183,11 @@ export default function AdminDashboard() {
                             <p className="font-medium text-gray-900 text-sm">
                               {p.school} · {p.grade} {p.exam_year}년 {p.exam_term}
                             </p>
-                            <p className="text-gray-400 text-xs mt-0.5">{teacherName} · {p.created_at?.slice(0, 10)}</p>
+                            <p className="text-gray-400 text-xs mt-0.5">{teacherName} 선생님 · {p.created_at?.slice(0, 10)}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
-                          {postStatus === 'waiting' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-red-100 text-red-700">발행 대기</span>}
+                          {postStatus === 'waiting' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-red-100 text-red-700">제출 완료</span>}
                           {postStatus === 'editing' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-yellow-100 text-yellow-700">수정 중</span>}
                           {postStatus === 'published' && <span className="text-xs font-medium px-3 py-1 rounded-full bg-green-100 text-green-700">발행 완료</span>}
                         </div>
@@ -233,42 +235,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {tab === 'subject' && (
-          <div>
-            {subjectRequests.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center">
-                <p className="text-gray-400 text-sm">대기 중인 과목 변경 신청이 없습니다</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {subjectRequests.map((r) => {
-                  const userName = r.users?.name ?? r.users?.user_id ?? '—'
-                  return (
-                    <div key={r.id} className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-6 py-5">
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">{userName}</p>
-                          <p className="text-gray-400 text-xs mt-0.5 flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded-full ${SUBJECT_STYLE[r.current_subject]}`}>{r.current_subject}</span>
-                            <span>→</span>
-                            <span className={`px-2 py-0.5 rounded-full ${SUBJECT_STYLE[r.requested_subject]}`}>{r.requested_subject}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleSubjectChange(r.id, false)}
-                          className="px-4 py-2 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition">거절</button>
-                        <button onClick={() => handleSubjectChange(r.id, true)}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition">승인</button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
         {tab === 'teachers' && (
           <div>
             {teachers.length === 0 ? (
@@ -294,10 +260,20 @@ export default function AdminDashboard() {
                         <p className="text-gray-400 text-xs mt-0.5">{u.user_id} · {u.phone || '전화번호 없음'} · 가입일 {u.created_at?.slice(0, 10)}</p>
                       </div>
                     </div>
-                    <button onClick={() => handleToggleActive(u.id, u.is_active)}
-                      className={`px-4 py-2 text-sm font-medium rounded-xl transition ${u.is_active ? 'border border-gray-200 text-gray-600 hover:bg-gray-50' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-                      {u.is_active ? '비활성화' : '재활성화'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleResetPassword(u.id, u.name)}
+                        className="px-3 py-2 text-xs border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 transition">
+                        비밀번호 초기화
+                      </button>
+                      <button onClick={() => handleToggleActive(u.id, u.is_active)}
+                        className={`px-3 py-2 text-xs font-medium rounded-xl transition ${u.is_active ? 'border border-gray-200 text-gray-600 hover:bg-gray-50' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                        {u.is_active ? '비활성화' : '재활성화'}
+                      </button>
+                      <button onClick={() => handleDeleteUser(u.id, u.name)}
+                        className="px-3 py-2 text-xs border border-red-200 text-red-500 rounded-xl hover:bg-red-50 transition">
+                        삭제
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
