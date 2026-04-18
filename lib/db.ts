@@ -102,6 +102,33 @@ export async function updateUserProfile(id: string, data: { phone?: string; pass
   await supabase.from('users').update(update).eq('id', id)
 }
 
+export async function getRecentAnalysisCount(teacherId: string): Promise<{ used: number; limit: number; periodStart: string; periodEnd: string }> {
+  const now = new Date()
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+  const { data: user } = await supabase
+    .from('users')
+    .select('analysis_count_reset_at')
+    .eq('id', teacherId)
+    .single()
+
+  const resetAt = user?.analysis_count_reset_at ? new Date(user.analysis_count_reset_at) : null
+  const startDate = resetAt && resetAt > weekAgo ? resetAt : weekAgo
+
+  const { count } = await supabase
+    .from('exams')
+    .select('*', { count: 'exact', head: true })
+    .eq('teacher_id', teacherId)
+    .gte('created_at', startDate.toISOString())
+
+  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  return { used: count ?? 0, limit: 3, periodStart: fmt(startDate), periodEnd: fmt(now) }
+}
+
+export async function resetAnalysisCount(teacherId: string) {
+  await supabase.from('users').update({ analysis_count_reset_at: new Date().toISOString() }).eq('id', teacherId)
+}
+
 // ── Exams ──
 
 export async function createExam(exam: {

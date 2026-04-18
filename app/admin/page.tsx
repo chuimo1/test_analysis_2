@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   getPendingSignups, approveUser, rejectUser,
   getTeachers, toggleUserActive, deleteUser, resetUserPassword,
-  getExams,
+  resetAnalysisCount, getExams,
 } from '@/lib/db'
 
 const SUBJECT_STYLE: Record<string, string> = {
@@ -70,6 +70,12 @@ export default function AdminDashboard() {
     if (!confirm(`"${name}" 강사의 비밀번호를 초기화(00000000)하시겠습니까?`)) return
     await resetUserPassword(id)
     alert(`${name} 강사의 비밀번호가 00000000으로 초기화되었습니다.`)
+  }
+
+  async function handleResetAnalysisCount(id: string, name: string) {
+    if (!confirm(`"${name}" 강사의 분석 횟수를 초기화하시겠습니까?`)) return
+    await resetAnalysisCount(id)
+    alert(`${name} 강사의 분석 횟수가 초기화되었습니다.`)
   }
 
   const filteredExams = exams.filter((e) => {
@@ -261,6 +267,10 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button onClick={() => handleResetAnalysisCount(u.id, u.name)}
+                        className="px-3 py-2 text-xs border border-indigo-200 text-indigo-500 rounded-xl hover:bg-indigo-50 transition">
+                        분석횟수 초기화
+                      </button>
                       <button onClick={() => handleResetPassword(u.id, u.name)}
                         className="px-3 py-2 text-xs border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 transition">
                         비밀번호 초기화

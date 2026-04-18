@@ -37,7 +37,7 @@ const DIFF_BADGE: Record<string, string> = {
 }
 
 const SOURCE_SUBJECTS = ['국어', '영어']
-const SOURCE_OPTIONS = ['교과서', '모의고사', '부교재', '학습지', '기타']
+const SOURCE_OPTIONS = ['교과서', '모의고사', '부교재', '학습지', '직접입력']
 
 function getDiffData(qs: typeof DUMMY.questions) {
   const c: Record<string, number> = {}
@@ -359,6 +359,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
     const sections: string[] = []
     sections.push(examTitle)
     sections.push('')
+    if (sectionComments['examInfo']) sections.push(`시험 정보 코멘트: ${sectionComments['examInfo']}`)
     if (overallDifficulty) sections.push(`전체 난이도: ${overallDifficulty}`)
     if (sectionComments['overallDifficulty']) sections.push(`코멘트: ${sectionComments['overallDifficulty']}`)
     sections.push('')
@@ -368,6 +369,12 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
       sections.push(`${q.number}번 | ${q.type} | ${q.mainUnit} ${q.subUnit} | 출처: ${q.source || '미입력'} | ${q.intent} | 정답률 ${q.expectedCorrectRate}% | ${q.difficulty} | 배점 ${q.score}`)
     })
     if (sectionComments['questions']) sections.push(`코멘트: ${sectionComments['questions']}`)
+    sections.push('')
+
+    if (sectionComments['diffChart']) sections.push(`난이도 분석 코멘트: ${sectionComments['diffChart']}`)
+    if (sectionComments['sourceChart']) sections.push(`출처 분석 코멘트: ${sectionComments['sourceChart']}`)
+    if (sectionComments['mainUnitChart']) sections.push(`대단원 분석 코멘트: ${sectionComments['mainUnitChart']}`)
+    if (sectionComments['subUnitChart']) sections.push(`중단원 분석 코멘트: ${sectionComments['subUnitChart']}`)
     sections.push('')
 
     sections.push('[ 시험 총평 ]')
@@ -544,6 +551,9 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                 )}
               </div>
             </div>
+            <textarea value={sectionComments['examInfo'] ?? ''} onChange={(e) => updateSectionComment('examInfo', e.target.value)}
+              placeholder="시험 정보에 대한 코멘트 (선택)" rows={2}
+              className="w-full mt-4 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
           </section>
         )}
 
@@ -558,9 +568,9 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
               </button>
             ))}
           </div>
-          {data.aiDifficultyReason && (
-            <p className="text-xs text-gray-500 mt-3 bg-gray-50 rounded-xl px-4 py-2">{data.aiDifficultyReason}</p>
-          )}
+          <textarea value={data.aiDifficultyReason} onChange={(e) => setData((prev) => ({ ...prev, aiDifficultyReason: e.target.value }))}
+            placeholder="AI 난이도 분석 근거를 수정할 수 있습니다" rows={2}
+            className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-xs text-gray-600 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y leading-relaxed" />
           <textarea value={sectionComments['overallDifficulty'] ?? ''} onChange={(e) => updateSectionComment('overallDifficulty', e.target.value)}
             placeholder="난이도에 대한 코멘트 (선택)" rows={2}
             className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
@@ -604,18 +614,30 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                     )}
                     <td className="py-2 px-3">
                       <div className="flex flex-col gap-1">
-                        <select
-                          value={SOURCE_OPTIONS.includes(q.source) ? q.source : q.source ? '기타' : ''}
-                          onChange={(e) => updateQuestion(idx, 'source', e.target.value === '기타' ? '' : e.target.value)}
-                          className={`text-xs border rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 ${!q.source ? 'border-amber-400 bg-amber-50 text-amber-700 font-semibold' : 'border-gray-200'}`}>
-                          <option value="">⚠ 선택</option>
-                          {SOURCE_OPTIONS.map((s) => <option key={s}>{s}</option>)}
-                        </select>
-                        {q.source && !SOURCE_OPTIONS.slice(0, -1).includes(q.source) && (
-                          <input value={q.source === '기타' ? '' : q.source} onChange={(e) => updateQuestion(idx, 'source', e.target.value || '기타')}
-                            placeholder="직접 입력"
-                            className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                        )}
+                        {(() => {
+                          const preset = SOURCE_OPTIONS.slice(0, -1)
+                          const isPreset = preset.includes(q.source)
+                          const isCustom = q.source === '직접입력' || (q.source && !isPreset)
+                          const dropValue = isPreset ? q.source : isCustom ? '직접입력' : ''
+                          return (
+                            <>
+                              <select
+                                value={dropValue}
+                                onChange={(e) => updateQuestion(idx, 'source', e.target.value === '직접입력' ? '직접입력' : e.target.value)}
+                                className={`text-xs border rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 ${!q.source ? 'border-amber-400 bg-amber-50 text-amber-700 font-semibold' : 'border-gray-200'}`}>
+                                <option value="">⚠ 선택</option>
+                                {SOURCE_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+                              </select>
+                              {isCustom && (
+                                <input
+                                  value={q.source === '직접입력' ? '' : q.source}
+                                  onChange={(e) => updateQuestion(idx, 'source', e.target.value || '직접입력')}
+                                  placeholder="출처를 입력하세요"
+                                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                     </td>
                     <td className="py-2 px-3">
@@ -699,6 +721,9 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                 </div>
               ))}
             </div>
+            <textarea value={sectionComments['diffChart'] ?? ''} onChange={(e) => updateSectionComment('diffChart', e.target.value)}
+              placeholder="난이도 분석에 대한 코멘트 (선택)" rows={2}
+              className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
           </section>
 
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -714,6 +739,9 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                 ))}
               </BarChart>
             </ResponsiveContainer>
+            <textarea value={sectionComments['sourceChart'] ?? ''} onChange={(e) => updateSectionComment('sourceChart', e.target.value)}
+              placeholder="출처 분석에 대한 코멘트 (선택)" rows={2}
+              className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
           </section>
 
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -729,6 +757,9 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                 ))}
               </BarChart>
             </ResponsiveContainer>
+            <textarea value={sectionComments['mainUnitChart'] ?? ''} onChange={(e) => updateSectionComment('mainUnitChart', e.target.value)}
+              placeholder="대단원 분석에 대한 코멘트 (선택)" rows={2}
+              className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
           </section>
 
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -744,6 +775,9 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                 ))}
               </BarChart>
             </ResponsiveContainer>
+            <textarea value={sectionComments['subUnitChart'] ?? ''} onChange={(e) => updateSectionComment('subUnitChart', e.target.value)}
+              placeholder="중단원 분석에 대한 코멘트 (선택)" rows={2}
+              className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
           </section>
         </div>
 
@@ -839,7 +873,8 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
             {data.killerQuestions.map((k, i) => {
               const syncedRate = data.questions.find((q) => q.number === k.number)?.expectedCorrectRate ?? k.rate
               return (
-              <div key={i} className="flex gap-4 p-4 bg-red-50 rounded-xl">
+              <div key={i} className="p-4 bg-red-50 rounded-xl">
+              <div className="flex gap-4">
                 <input type="number" value={k.number || ''} onChange={(e) => updateKiller(i, 'number', Number(e.target.value))}
                   placeholder="번호" className="w-16 h-10 bg-red-100 rounded-xl text-red-700 font-bold text-sm text-center shrink-0 focus:outline-none focus:ring-1 focus:ring-red-400" />
                 <div className="flex-1 min-w-0 space-y-2">
@@ -885,25 +920,32 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                     onChange={(e) => { handleSolutionUpload(i, e.target.files); e.target.value = '' }}
                   />
                 </div>
-                {k.solutionFiles.length > 0 && (
-                  <div className="col-span-full mt-2 space-y-1">
-                    {k.solutionFiles.map((f, fi) => (
-                      <div key={fi} className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 text-xs">
-                        <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </div>
+              {k.solutionFiles.length > 0 && (
+                <div className="mt-2 ml-20 space-y-1">
+                  {k.solutionFiles.map((f, fi) => (
+                    <div key={fi} className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 text-xs border border-gray-100">
+                      <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      <span className="text-gray-700 truncate max-w-[180px]">{f.fileName}</span>
+                      <a href={f.url} target="_blank" rel="noopener noreferrer" download
+                        title="다운로드"
+                        className="text-indigo-500 hover:text-indigo-700 shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
-                        <a href={f.url} target="_blank" rel="noopener noreferrer"
-                          className="text-indigo-600 hover:underline truncate max-w-[180px]">{f.fileName}</a>
-                        <button onClick={() => removeSolutionFile(i, fi)} title="삭제"
-                          className="text-gray-400 hover:text-red-500 shrink-0">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      </a>
+                      <button onClick={() => removeSolutionFile(i, fi)} title="삭제"
+                        className="text-gray-400 hover:text-red-500 shrink-0">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               </div>
             )})}
             {data.killerQuestions.length < 5 && (
@@ -942,16 +984,28 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                       {data.questions.map((q) => <option key={q.number} value={q.number}>{q.number}번</option>)}
                     </select>
                     {h.examImage ? (
-                      <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 text-xs">
-                        <a href={h.examImage.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline truncate">{h.examImage.fileName}</a>
-                        <button onClick={() => updateHitQuestion(i, 'examImage', null)} className="text-gray-400 hover:text-red-500 shrink-0">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
+                      <div className="relative bg-white rounded-lg border border-green-200 overflow-hidden">
+                        <img src={h.examImage.url} alt={h.examImage.fileName} className="w-full max-h-48 object-contain bg-gray-50" />
+                        <div className="flex items-center justify-between px-3 py-1.5 border-t border-green-100">
+                          <span className="text-xs text-gray-500 truncate max-w-[120px]">{h.examImage.fileName}</span>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => { updateHitQuestion(i, 'examImage', null); hitExamInputRefs.current[i]?.click() }}
+                              title="다시 첨부" className="text-indigo-500 hover:text-indigo-700">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </button>
+                            <button onClick={() => updateHitQuestion(i, 'examImage', null)}
+                              title="삭제" className="text-gray-400 hover:text-red-500">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <button onClick={() => hitExamInputRefs.current[i]?.click()}
                         disabled={uploadingHitIdx?.idx === i && uploadingHitIdx?.side === 'examImage'}
-                        className="w-full border-2 border-dashed border-green-200 rounded-lg py-3 text-xs text-green-500 hover:bg-green-100 transition">
+                        className="w-full border-2 border-dashed border-green-200 rounded-lg py-6 text-xs text-green-500 hover:bg-green-100 transition">
                         {uploadingHitIdx?.idx === i && uploadingHitIdx?.side === 'examImage' ? '업로드 중...' : '+ 이미지 업로드'}
                       </button>
                     )}
@@ -964,16 +1018,28 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                       placeholder="출처 (예: EBS 수능특강 3강 5번)"
                       className="text-xs border border-green-200 rounded-lg px-2 py-1 bg-white mb-2 w-full focus:outline-none focus:ring-1 focus:ring-green-400" />
                     {h.hitImage ? (
-                      <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 text-xs">
-                        <a href={h.hitImage.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline truncate">{h.hitImage.fileName}</a>
-                        <button onClick={() => updateHitQuestion(i, 'hitImage', null)} className="text-gray-400 hover:text-red-500 shrink-0">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
+                      <div className="relative bg-white rounded-lg border border-green-200 overflow-hidden">
+                        <img src={h.hitImage.url} alt={h.hitImage.fileName} className="w-full max-h-48 object-contain bg-gray-50" />
+                        <div className="flex items-center justify-between px-3 py-1.5 border-t border-green-100">
+                          <span className="text-xs text-gray-500 truncate max-w-[120px]">{h.hitImage.fileName}</span>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => { updateHitQuestion(i, 'hitImage', null); hitMatchInputRefs.current[i]?.click() }}
+                              title="다시 첨부" className="text-indigo-500 hover:text-indigo-700">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </button>
+                            <button onClick={() => updateHitQuestion(i, 'hitImage', null)}
+                              title="삭제" className="text-gray-400 hover:text-red-500">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <button onClick={() => hitMatchInputRefs.current[i]?.click()}
                         disabled={uploadingHitIdx?.idx === i && uploadingHitIdx?.side === 'hitImage'}
-                        className="w-full border-2 border-dashed border-green-200 rounded-lg py-3 text-xs text-green-500 hover:bg-green-100 transition">
+                        className="w-full border-2 border-dashed border-green-200 rounded-lg py-6 text-xs text-green-500 hover:bg-green-100 transition">
                         {uploadingHitIdx?.idx === i && uploadingHitIdx?.side === 'hitImage' ? '업로드 중...' : '+ 이미지 업로드'}
                       </button>
                     )}

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Subject, Grade, Difficulty, ExamScopeItem, SourceCategory } from '@/lib/types'
-import { createExam } from '@/lib/db'
+import { createExam, getRecentAnalysisCount } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 
 const GRADES: Grade[] = ['중1', '중2', '중3', '고1', '고2', '고3']
@@ -56,12 +56,17 @@ export default function UploadPage() {
     if (user.subject) {
       setForm((prev) => ({ ...prev, subject: user.subject }))
     }
+    if (user.id) {
+      getRecentAnalysisCount(user.id).then(setAnalysisQuota)
+    }
   }, [])
 
   const [currentImages, setCurrentImages] = useState<File[]>([])
   const [prevImages, setPrevImages] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [analysisQuota, setAnalysisQuota] = useState<{ used: number; limit: number; periodStart: string; periodEnd: string } | null>(null)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   const currentInputRef = useRef<HTMLInputElement>(null)
   const prevInputRef = useRef<HTMLInputElement>(null)
@@ -110,7 +115,7 @@ export default function UploadPage() {
     setPrevImages((prev) => prev.filter((_, i) => i !== idx))
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
 
@@ -123,6 +128,16 @@ export default function UploadPage() {
       return
     }
 
+    if (analysisQuota && analysisQuota.used >= analysisQuota.limit) {
+      setError(`주간 분석 가능 횟수(${analysisQuota.limit}회)를 초과했습니다. 관리자에게 문의하세요.`)
+      return
+    }
+
+    setShowConfirmModal(true)
+  }
+
+  async function handleConfirmAnalysis() {
+    setShowConfirmModal(false)
     setLoading(true)
 
     try {
@@ -428,7 +443,19 @@ export default function UploadPage() {
             <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded-xl">{error}</p>
           )}
 
-          <button type="submit" disabled={loading}
+          {analysisQuota && (
+            <div className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm ${analysisQuota.used >= analysisQuota.limit ? 'bg-red-50 border border-red-200' : 'bg-indigo-50 border border-indigo-200'}`}>
+              <span className={analysisQuota.used >= analysisQuota.limit ? 'text-red-700' : 'text-indigo-700'}>
+                주간 분석 횟수: <strong>{analysisQuota.used}</strong> / {analysisQuota.limit}회
+                <span className="text-xs ml-2 opacity-70">({analysisQuota.periodStart} ~ {analysisQuota.periodEnd})</span>
+              </span>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${analysisQuota.used >= analysisQuota.limit ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                {analysisQuota.used >= analysisQuota.limit ? '초과' : `남은 횟수: ${analysisQuota.limit - analysisQuota.used}회`}
+              </span>
+            </div>
+          )}
+
+          <button type="submit" disabled={loading || (analysisQuota !== null && analysisQuota.used >= analysisQuota.limit)}
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium py-4 rounded-xl transition flex items-center justify-center gap-2">
             {loading ? (
               <>
@@ -449,6 +476,41 @@ export default function UploadPage() {
           </button>
         </form>
       </main>
+
+      {showConfirmModal && analysisQuota && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-4">분석을 시작하시겠습니까?</h3>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2 mb-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">기간</span>
+                <span className="text-gray-900 font-medium">{analysisQuota.periodStart} ~ {analysisQuota.periodEnd}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">제한 횟수</span>
+                <span className="text-gray-900 font-medium">{analysisQuota.limit}회</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">사용 횟수</span>
+                <span className="text-gray-900 font-medium">{analysisQuota.used}회</span>
+              </div>
+              <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
+                <span className="text-gray-500">남은 횟수</span>
+                <span className="text-indigo-600 font-bold">{analysisQuota.limit - analysisQuota.used}회</span>
+              </div>
+            </div>
+            <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mb-4">
+              분석을 시작하면 1회가 차감됩니다. 시험지가 정확히 업로드되었는지 확인해주세요.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowConfirmModal(false)}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl hover:bg-gray-50 transition">취소</button>
+              <button onClick={handleConfirmAnalysis}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition">분석 시작</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
