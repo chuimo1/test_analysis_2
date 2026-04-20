@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest, NextResponse } from 'next/server'
+import { recordApiKeyUsage } from '@/lib/db'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -33,7 +34,7 @@ function extractJson(text: string) {
 async function runStage(
   parts: (ImagePart | { text: string })[],
   stagePrompt: string,
-): Promise<Record<string, unknown>> {
+): Promise<{ data: Record<string, unknown>; keyIndex: number }> {
   let lastError: Error | null = null
   for (let keyIdx = 0; keyIdx < genAIs.length; keyIdx++) {
     const model = genAIs[keyIdx].getGenerativeModel({ model: 'models/gemini-3-flash-preview' })
@@ -41,10 +42,13 @@ async function runStage(
       try {
         if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_DELAY))
         const result = await model.generateContent([...parts, { text: stagePrompt }])
-        return extractJson(result.response.text())
+        return { data: extractJson(result.response.text()), keyIndex: keyIdx }
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err))
-        if (isQuotaError(err)) break
+        if (isQuotaError(err)) {
+          recordApiKeyUsage(keyIdx, 'quota_error').catch(() => {})
+          break
+        }
       }
     }
   }
@@ -183,18 +187,21 @@ commonMistakes는 3~5개 항목으로, 실제 학생들이 자주 하는 실수�
 
     const settled = await Promise.allSettled(
       stagePrompts.map((stage) =>
-        runStage(imageParts, stage.prompt).then((data) => ({ key: stage.key, data }))
+        runStage(imageParts, stage.prompt).then((res) => ({ key: stage.key, ...res }))
       )
     )
 
+    const usedKeys = new Set<number>()
     for (const result of settled) {
       if (result.status === 'fulfilled') {
         Object.assign(results, result.value.data)
+        usedKeys.add(result.value.keyIndex)
       } else {
         const msg = result.reason instanceof Error ? result.reason.message : String(result.reason)
         errors.push({ stage: 'unknown', error: msg })
       }
     }
+    for (const k of usedKeys) recordApiKeyUsage(k, 'success').catch(() => {})
 
     if (!results.questions && errors.length > 0) {
       return NextResponse.json(

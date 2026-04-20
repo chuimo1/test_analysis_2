@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   getPendingSignups, approveUser, rejectUser,
   getTeachers, toggleUserActive, deleteUser, resetUserPassword,
-  resetAnalysisCount, getExams,
+  resetAnalysisCount, getExams, getApiKeyStatus,
 } from '@/lib/db'
 
 const SUBJECT_STYLE: Record<string, string> = {
@@ -29,18 +29,21 @@ export default function AdminDashboard() {
   const [pendingSignups, setPendingSignups] = useState<any[]>([])
   const [teachers, setTeachers] = useState<any[]>([])
   /* eslint-enable @typescript-eslint/no-explicit-any */
+  const [apiKeyStatus, setApiKeyStatus] = useState<{ key_index: number; last_used_at: string | null; last_quota_error_at: string | null }[]>([])
 
   const [filter, setFilter] = useState({ school: '', grade: '', subject: '', examYear: '', examTerm: '' })
 
   const loadData = useCallback(async () => {
-    const [e, p, t] = await Promise.all([
+    const [e, p, t, k] = await Promise.all([
       getExams(),
       getPendingSignups(),
       getTeachers(),
+      getApiKeyStatus(),
     ])
     setExams(e)
     setPendingSignups(p)
     setTeachers(t)
+    setApiKeyStatus(k)
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
@@ -243,6 +246,37 @@ export default function AdminDashboard() {
 
         {tab === 'teachers' && (
           <div>
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-900 text-sm">🔑 Gemini API 키 상태</h3>
+                {(() => {
+                  const k1 = apiKeyStatus.find((x) => x.key_index === 0)
+                  const k2 = apiKeyStatus.find((x) => x.key_index === 1)
+                  const dayAgo = Date.now() - 24 * 60 * 60 * 1000
+                  const k1Exhausted = k1?.last_quota_error_at && new Date(k1.last_quota_error_at).getTime() > dayAgo
+                  const active = !k1Exhausted ? 1 : (k2?.last_quota_error_at && new Date(k2.last_quota_error_at).getTime() > dayAgo ? 0 : 2)
+                  return (
+                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${active === 0 ? 'bg-red-100 text-red-700' : active === 1 ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {active === 0 ? '⚠ 두 키 모두 한도 초과' : active === 1 ? '● Key1 활성' : '● Key2 활성 (Key1 한도 초과)'}
+                    </span>
+                  )
+                })()}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {[0, 1].map((idx) => {
+                  const s = apiKeyStatus.find((x) => x.key_index === idx)
+                  const fmt = (t: string | null) => t ? new Date(t).toLocaleString('ko-KR') : '기록 없음'
+                  return (
+                    <div key={idx} className="bg-gray-50 rounded-xl p-3 space-y-1">
+                      <p className="font-semibold text-gray-700">Key{idx + 1}</p>
+                      <p className="text-gray-500">마지막 사용: <span className="text-gray-700">{fmt(s?.last_used_at ?? null)}</span></p>
+                      <p className="text-gray-500">마지막 한도 초과: <span className={s?.last_quota_error_at ? 'text-red-600' : 'text-gray-700'}>{fmt(s?.last_quota_error_at ?? null)}</span></p>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-3">Key1 우선 사용 → 한도 초과 시 Key2로 자동 전환. Google 무료 한도는 매일 자정(태평양 시간) 초기화됩니다.</p>
+            </div>
             {teachers.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center">
                 <p className="text-gray-400 text-sm">등록된 강사가 없습니다</p>

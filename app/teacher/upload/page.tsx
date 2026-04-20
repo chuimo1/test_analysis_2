@@ -129,6 +129,11 @@ export default function UploadPage() {
       setError('분석할 시험지를 업로드해주세요.')
       return
     }
+    const validScope = examScope.filter((s) => s.detail.trim().length > 0)
+    if (validScope.length === 0) {
+      setError('시험 범위를 1개 이상 입력해주세요.')
+      return
+    }
 
     if (analysisQuota && analysisQuota.used >= analysisQuota.limit) {
       setError(`주간 분석 가능 횟수(${analysisQuota.limit}회)를 초과했습니다. 관리자에게 문의하세요.`)
@@ -291,9 +296,9 @@ export default function UploadPage() {
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-2">
               <h2 className="font-semibold text-gray-900">시험 범위</h2>
-              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">선택</span>
+              <span className="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded-full">필수</span>
             </div>
-            <p className="text-xs text-gray-400 mb-5">출제 범위를 입력하면 AI 분석 정확도가 높아집니다</p>
+            <p className="text-xs text-gray-400 mb-5">출제 범위를 1개 이상 입력하세요. AI 분석 정확도에 큰 영향을 줍니다.</p>
 
             <div className="space-y-3 mb-3">
               {examScope.map((row, i) => (

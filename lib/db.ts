@@ -219,6 +219,18 @@ export async function deleteSolutionFile(path: string) {
   await supabase.storage.from('exam-files').remove([path])
 }
 
+// ── API Key Status ──
+
+export async function recordApiKeyUsage(keyIndex: number, status: 'success' | 'quota_error') {
+  const column = status === 'success' ? 'last_used_at' : 'last_quota_error_at'
+  await supabase.from('api_key_status').upsert({ key_index: keyIndex, [column]: new Date().toISOString() }, { onConflict: 'key_index' })
+}
+
+export async function getApiKeyStatus(): Promise<{ key_index: number; last_used_at: string | null; last_quota_error_at: string | null }[]> {
+  const { data } = await supabase.from('api_key_status').select('*').order('key_index', { ascending: true })
+  return data ?? []
+}
+
 // ── Subject Change Requests ──
 
 export async function getSubjectChangeRequests() {
