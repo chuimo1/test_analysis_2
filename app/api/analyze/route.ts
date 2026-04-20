@@ -37,7 +37,10 @@ async function runStage(
 ): Promise<{ data: Record<string, unknown>; keyIndex: number }> {
   let lastError: Error | null = null
   for (let keyIdx = 0; keyIdx < genAIs.length; keyIdx++) {
-    const model = genAIs[keyIdx].getGenerativeModel({ model: 'models/gemini-3-flash-preview' })
+    const model = genAIs[keyIdx].getGenerativeModel({
+      model: 'models/gemini-3-flash-preview',
+      generationConfig: { maxOutputTokens: 8192, temperature: 0.3 },
+    })
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_DELAY))
@@ -150,7 +153,12 @@ ${preAnalysisBlock}
 
 {"questions": [{"number": 1, "type": "객관식 | 단답형 | 서술형", "mainUnit": "대단원명", "subUnit": "중단원명", "intent": "출제자 의도", "expectedCorrectRate": 75, "difficulty": "상 | 중상 | 중 | 중하 | 하", "score": "배점 숫자 또는 \"-\""}]}
 
-반드시 모든 문제를 빠짐없이 분석하세요.`,
+[매우 중요] 반드시 아래 규칙을 지키세요:
+1. 시험지 전체 페이지를 끝까지 스캔하여 존재하는 모든 문제 번호를 빠짐없이 포함하세요.
+2. 시험지에 문제 번호가 1번부터 N번까지 있다면, 1부터 N까지 번호 순서대로 연속되게 출력해야 합니다.
+3. 번호가 누락되면 안 됩니다. 중간에 건너뛴 번호가 있으면 다시 확인하고 채워넣으세요.
+4. 작은 글씨, 뒷 페이지, 서술형 문제도 빠뜨리지 마세요.
+5. 분석 전 시험지의 총 문제 수를 먼저 세고, 그 개수만큼 반드시 반환하세요.`,
       },
       {
         key: 'overview',

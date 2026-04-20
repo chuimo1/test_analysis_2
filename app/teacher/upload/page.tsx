@@ -71,7 +71,7 @@ export default function UploadPage() {
   const currentInputRef = useRef<HTMLInputElement>(null)
   const prevInputRef = useRef<HTMLInputElement>(null)
 
-  function compressImage(file: File, maxSize = 1024): Promise<File> {
+  function compressImage(file: File, maxSize = 1280): Promise<File> {
     if (file.type === 'application/pdf') return Promise.resolve(file)
     return new Promise((resolve) => {
       const img = new Image()
