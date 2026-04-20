@@ -74,6 +74,16 @@ function getMainUnitData(qs: typeof DUMMY.questions) {
   return Object.entries(map).map(([mainUnit, diffs]) => ({ mainUnit, ...diffs }))
 }
 
+function getIntentData(qs: typeof DUMMY.questions) {
+  const map: Record<string, Record<string, number>> = {}
+  qs.forEach((q) => {
+    const intent = q.intent || '미입력'
+    if (!map[intent]) map[intent] = {}
+    map[intent][q.difficulty] = (map[intent][q.difficulty] ?? 0) + 1
+  })
+  return Object.entries(map).map(([intent, diffs]) => ({ intent, ...diffs }))
+}
+
 type HitQuestion = { questionNumber: number; examImage: { url: string; fileName: string; path: string } | null; hitImage: { url: string; fileName: string; path: string } | null; source: string }
 
 interface ExamAnalysisProps {
@@ -440,10 +450,12 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
   }
 
   const isSourceSubject = SOURCE_SUBJECTS.includes(d.subject)
+  const isMath = d.subject === '수학'
   const diffData = getDiffData(d.questions)
   const subUnitData = getSubUnitData(d.questions)
   const sourceData = getSourceData(d.questions)
   const mainUnitData = getMainUnitData(d.questions)
+  const intentData = getIntentData(d.questions)
   const activeDiffs = DIFFICULTY_ORDER.filter((diff) => d.questions.some((q) => q.difficulty === diff))
 
   const backLink = mode === 'admin' ? '/admin' : '/teacher'
@@ -749,7 +761,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
           </section>
 
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
-            <h2 className="text-base font-bold text-gray-900 mb-4">📚 대단원별 분석</h2>
+            <h2 className="text-base font-bold text-gray-900 mb-4">{isMath ? '📚 대단원별 분석' : '📚 영역별 분석'}</h2>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={mainUnitData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
@@ -762,17 +774,17 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
               </BarChart>
             </ResponsiveContainer>
             <textarea value={sectionComments['mainUnitChart'] ?? ''} onChange={(e) => updateSectionComment('mainUnitChart', e.target.value)}
-              placeholder="대단원 분석에 대한 코멘트 (선택)" rows={2}
+              placeholder={isMath ? '대단원 분석에 대한 코멘트 (선택)' : '영역 분석에 대한 코멘트 (선택)'} rows={2}
               className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
           </section>
 
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
-            <h2 className="text-base font-bold text-gray-900 mb-4">📖 중단원별 분석</h2>
+            <h2 className="text-base font-bold text-gray-900 mb-4">{isMath ? '📖 중단원별 분석' : '🎯 출제자 의도별 분석'}</h2>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={subUnitData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
+              <BarChart data={(isMath ? subUnitData : intentData) as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="subUnit" tick={{ fontSize: 10 }} width={56} />
+                <YAxis type="category" dataKey={isMath ? 'subUnit' : 'intent'} tick={{ fontSize: 10 }} width={56} />
                 <Tooltip />
                 {activeDiffs.map((diff) => (
                   <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
@@ -780,7 +792,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
               </BarChart>
             </ResponsiveContainer>
             <textarea value={sectionComments['subUnitChart'] ?? ''} onChange={(e) => updateSectionComment('subUnitChart', e.target.value)}
-              placeholder="중단원 분석에 대한 코멘트 (선택)" rows={2}
+              placeholder={isMath ? '중단원 분석에 대한 코멘트 (선택)' : '출제자 의도 분석에 대한 코멘트 (선택)'} rows={2}
               className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
           </section>
         </div>

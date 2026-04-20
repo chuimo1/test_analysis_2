@@ -107,7 +107,11 @@ export async function POST(req: NextRequest) {
       try {
         const parsed = JSON.parse(examScopeRaw) as { category: string; detail: string }[]
         if (parsed.length > 0) {
-          scopeInfo = `- 시험 출제 범위:\n${parsed.map((s) => `  · [${s.category}] ${s.detail}`).join('\n')}\n  이 범위를 참고하여 각 문항의 출처(source)를 분류하세요.`
+          const textbookScopes = parsed.filter((s) => s.category === '교과서')
+          const unitHint = subject === '수학' && textbookScopes.length > 0
+            ? `\n  ※ 수학 과목입니다. 위 [교과서] 범위에 입력된 단원명(예: "다항식, 방정식, 부등식")을 mainUnit(대단원) 분류의 핵심 근거로 사용하세요. 교과서 범위에 없는 대단원으로 분류하지 마세요. (부교재/학습지/모의고사 범위는 mainUnit 분류에 사용하지 않습니다.)`
+            : ''
+          scopeInfo = `- 시험 출제 범위:\n${parsed.map((s) => `  · [${s.category}] ${s.detail}`).join('\n')}\n  이 범위를 참고하여 각 문항의 출처(source)를 분류하세요.${unitHint}`
         }
       } catch {
         scopeInfo = `- 시험 범위: ${examScopeRaw}`
