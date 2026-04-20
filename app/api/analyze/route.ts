@@ -5,7 +5,12 @@ import { recordApiKeyUsage } from '@/lib/db'
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-const API_KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_2].filter(Boolean) as string[]
+const API_KEYS = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+  process.env.GEMINI_API_KEY_4,
+].filter(Boolean) as string[]
 const genAIs = API_KEYS.map((key) => new GoogleGenerativeAI(key))
 
 function isQuotaError(err: unknown): boolean {
@@ -34,9 +39,11 @@ function extractJson(text: string) {
 async function runStage(
   parts: (ImagePart | { text: string })[],
   stagePrompt: string,
+  preferredKey = 0,
 ): Promise<{ data: Record<string, unknown>; keyIndex: number }> {
   let lastError: Error | null = null
-  for (let keyIdx = 0; keyIdx < genAIs.length; keyIdx++) {
+  const keyOrder = [preferredKey, ...genAIs.map((_, i) => i).filter((i) => i !== preferredKey)]
+  for (const keyIdx of keyOrder) {
     const model = genAIs[keyIdx].getGenerativeModel({ model: 'models/gemini-2.5-flash' })
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -186,8 +193,8 @@ commonMistakes는 3~5개 항목으로, 실제 학생들이 자주 하는 실수�
     const errors: { stage: string; error: string }[] = []
 
     const settled = await Promise.allSettled(
-      stagePrompts.map((stage) =>
-        runStage(imageParts, stage.prompt).then((res) => ({ key: stage.key, ...res }))
+      stagePrompts.map((stage, idx) =>
+        runStage(imageParts, stage.prompt, idx % Math.max(genAIs.length, 1)).then((res) => ({ key: stage.key, ...res }))
       )
     )
 
