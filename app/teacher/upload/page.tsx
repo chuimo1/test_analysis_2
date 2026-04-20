@@ -129,6 +129,11 @@ export default function UploadPage() {
       setError('분석할 시험지를 업로드해주세요.')
       return
     }
+    const validScope = examScope.filter((s) => s.detail.trim().length > 0)
+    if (validScope.length === 0) {
+      setError('시험 범위를 1개 이상 입력해주세요.')
+      return
+    }
 
     if (analysisQuota && analysisQuota.used >= analysisQuota.limit) {
       setError(`주간 분석 가능 횟수(${analysisQuota.limit}회)를 초과했습니다. 관리자에게 문의하세요.`)
