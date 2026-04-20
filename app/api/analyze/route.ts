@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest, NextResponse } from 'next/server'
-import { recordApiKeyUsage } from '@/lib/db'
+import { recordApiKeyUsage, getApiKeyStatus } from '@/lib/db'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -39,10 +39,9 @@ function extractJson(text: string) {
 async function runStage(
   parts: (ImagePart | { text: string })[],
   stagePrompt: string,
-  preferredKey = 0,
+  keyOrder: number[],
 ): Promise<{ data: Record<string, unknown>; keyIndex: number }> {
   let lastError: Error | null = null
-  const keyOrder = [preferredKey, ...genAIs.map((_, i) => i).filter((i) => i !== preferredKey)]
   for (const keyIdx of keyOrder) {
     const model = genAIs[keyIdx].getGenerativeModel({ model: 'models/gemini-2.5-flash' })
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -192,9 +191,21 @@ commonMistakes는 3~5개 항목으로, 실제 학생들이 자주 하는 실수�
     const results: Record<string, unknown> = {}
     const errors: { stage: string; error: string }[] = []
 
+    const status = await getApiKeyStatus().catch(() => [])
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000
+    const isAlive = (i: number) => {
+      const s = status.find((x) => x.key_index === i)
+      return !s?.last_quota_error_at || new Date(s.last_quota_error_at).getTime() <= dayAgo
+    }
+    const allIdx = genAIs.map((_, i) => i)
+    const aliveFirst = [...allIdx.filter(isAlive), ...allIdx.filter((i) => !isAlive(i))]
+    if (aliveFirst.length === 0) {
+      return NextResponse.json({ error: '오늘 사용 가능한 API 키가 없습니다. 내일 다시 시도해주세요.' }, { status: 503 })
+    }
+
     const settled = await Promise.allSettled(
-      stagePrompts.map((stage, idx) =>
-        runStage(imageParts, stage.prompt, idx % Math.max(genAIs.length, 1)).then((res) => ({ key: stage.key, ...res }))
+      stagePrompts.map((stage) =>
+        runStage(imageParts, stage.prompt, aliveFirst).then((res) => ({ key: stage.key, ...res }))
       )
     )
 
