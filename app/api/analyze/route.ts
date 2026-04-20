@@ -4,7 +4,13 @@ import { NextRequest, NextResponse } from 'next/server'
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+const API_KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_2].filter(Boolean) as string[]
+const genAIs = API_KEYS.map((key) => new GoogleGenerativeAI(key))
+
+function isQuotaError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return /429|quota|rate.?limit|too many/i.test(msg)
+}
 
 const SUBJECT_PROMPT: Record<string, string> = {
   국어: '국어 시험지입니다. mainUnit(유형)은 문학/독서/문법 중 하나로 분류하세요. subUnit(중단원)은 현대시, 현대소설, 고전시가, 고전소설, 비문학, 음운론, 형태론 등으로 분류하세요. 출제자 의도는 주제찾기, 내용파악, 의미파악, 시제파악, 함의찾기, 감상하기, 개념파악 등으로 분류하세요.',
@@ -25,18 +31,21 @@ function extractJson(text: string) {
 }
 
 async function runStage(
-  model: ReturnType<typeof genAI.getGenerativeModel>,
   parts: (ImagePart | { text: string })[],
   stagePrompt: string,
 ): Promise<Record<string, unknown>> {
   let lastError: Error | null = null
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_DELAY))
-      const result = await model.generateContent([...parts, { text: stagePrompt }])
-      return extractJson(result.response.text())
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err))
+  for (let keyIdx = 0; keyIdx < genAIs.length; keyIdx++) {
+    const model = genAIs[keyIdx].getGenerativeModel({ model: 'models/gemini-3-flash-preview' })
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_DELAY))
+        const result = await model.generateContent([...parts, { text: stagePrompt }])
+        return extractJson(result.response.text())
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err))
+        if (isQuotaError(err)) break
+      }
     }
   }
   throw lastError
@@ -56,27 +65,30 @@ export async function POST(req: NextRequest) {
     const {
       subject, grade, school, examYear, examTerm,
       expectedDifficulty, teacherNote, examScope: examScopeRaw,
-      currentImageUrl, prevImageUrls,
+      currentImageUrl, currentImageUrls, prevImageUrls,
     } = body as {
       subject: string; grade: string; school: string
       examYear: string; examTerm: string
       expectedDifficulty?: string; teacherNote?: string; examScope?: string
-      currentImageUrl: string; prevImageUrls: string[]
+      currentImageUrl?: string; currentImageUrls?: string[]; prevImageUrls: string[]
     }
 
-    if (!currentImageUrl) {
+    const currentUrls = currentImageUrls ?? (currentImageUrl ? [currentImageUrl] : [])
+    if (currentUrls.length === 0) {
       return NextResponse.json({ error: '시험지 이미지가 없습니다.' }, { status: 400 })
     }
 
-    const currentImg = await urlToBase64(currentImageUrl)
+    const currentImageParts: ImagePart[] = []
+    for (const url of currentUrls) {
+      const img = await urlToBase64(url)
+      currentImageParts.push({ inlineData: img })
+    }
 
     const prevImageParts: ImagePart[] = []
     for (const url of (prevImageUrls ?? [])) {
       const img = await urlToBase64(url)
       prevImageParts.push({ inlineData: img })
     }
-
-    const model = genAI.getGenerativeModel({ model: 'models/gemini-3-flash-preview' })
 
     const subjectGuide = SUBJECT_PROMPT[subject] ?? ''
     const hasPrev = prevImageParts.length > 0
@@ -113,13 +125,14 @@ ${subjectGuide}
 - 학교: ${school}
 - 연도: ${examYear}년
 - 시험: ${examTerm}
-${hasPrev ? `- 전년도 시험지 ${prevImageParts.length}개도 함께 제공됩니다.` : ''}
+- 분석할 시험지는 ${currentImageParts.length}장의 이미지로 구성되어 있습니다.
+${hasPrev ? `- 전년도 시험지 ${prevImageParts.length}장도 함께 제공됩니다.` : ''}
 ${preAnalysisBlock}
 
-첫 번째 이미지는 분석할 시험지입니다.${hasPrev ? ' 이후 이미지들은 전년도 시험지입니다.' : ''}`
+처음 ${currentImageParts.length}장의 이미지는 분석할 시험지입니다 (순서대로 1~${currentImageParts.length}페이지).${hasPrev ? ' 이후 이미지들은 전년도 시험지입니다.' : ''}`
 
     const imageParts: (ImagePart | { text: string })[] = [
-      { inlineData: { data: currentImg.data, mimeType: currentImg.mimeType } },
+      ...currentImageParts,
       ...prevImageParts,
       { text: baseContext },
     ]
@@ -170,7 +183,7 @@ commonMistakes는 3~5개 항목으로, 실제 학생들이 자주 하는 실수�
 
     const settled = await Promise.allSettled(
       stagePrompts.map((stage) =>
-        runStage(model, imageParts, stage.prompt).then((data) => ({ key: stage.key, data }))
+        runStage(imageParts, stage.prompt).then((data) => ({ key: stage.key, data }))
       )
     )
 

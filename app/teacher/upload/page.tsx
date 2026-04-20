@@ -96,9 +96,11 @@ export default function UploadPage() {
   }
 
   async function handleCurrentImages(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []).slice(0, 1)
+    const incoming = Array.from(e.target.files ?? [])
+    const remaining = Math.max(0, 10 - currentImages.length)
+    const files = incoming.slice(0, remaining)
     const compressed = await Promise.all(files.map((f) => compressImage(f)))
-    setCurrentImages(compressed)
+    setCurrentImages((prev) => [...prev, ...compressed])
   }
 
   async function handlePrevImages(e: React.ChangeEvent<HTMLInputElement>) {
@@ -150,7 +152,10 @@ export default function UploadPage() {
         return data.publicUrl
       }
 
-      const currentImageUrl = await uploadToStorage(currentImages[0], 'temp-exams')
+      const currentImageUrls: string[] = []
+      for (const f of currentImages) {
+        currentImageUrls.push(await uploadToStorage(f, 'temp-exams'))
+      }
       const prevImageUrls: string[] = []
       for (const f of prevImages) {
         prevImageUrls.push(await uploadToStorage(f, 'temp-exams'))
@@ -168,7 +173,7 @@ export default function UploadPage() {
           expectedDifficulty: form.expectedDifficulty,
           teacherNote: form.teacherNote || undefined,
           examScope: examScope.length > 0 ? JSON.stringify(examScope) : undefined,
-          currentImageUrl,
+          currentImageUrls,
           prevImageUrls,
         }),
       })
@@ -365,9 +370,9 @@ export default function UploadPage() {
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-2">
               <h2 className="font-semibold text-gray-900">분석할 시험지</h2>
-              <span className="text-xs text-gray-400">이미지 1장</span>
+              <span className="text-xs text-gray-400">최대 10장 ({currentImages.length}/10)</span>
             </div>
-            <p className="text-xs text-gray-400 mb-5">AI가 분석할 시험지 이미지를 업로드하세요 (JPG, PNG, PDF)</p>
+            <p className="text-xs text-gray-400 mb-5">AI가 분석할 시험지 이미지를 순서대로 업로드하세요 (JPG, PNG, PDF)</p>
 
             {currentImages.length === 0 ? (
               <button type="button" onClick={() => currentInputRef.current?.click()}
@@ -382,6 +387,7 @@ export default function UploadPage() {
                 {currentImages.map((file, i) => (
                   <div key={i} className="flex items-center justify-between bg-indigo-50 rounded-xl px-4 py-3">
                     <div className="flex items-center gap-3">
+                      <span className="text-xs font-semibold text-indigo-500 w-6">{i + 1}.</span>
                       <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
@@ -395,9 +401,15 @@ export default function UploadPage() {
                     </button>
                   </div>
                 ))}
+                {currentImages.length < 10 && (
+                  <button type="button" onClick={() => currentInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 text-center text-sm text-gray-400 hover:border-indigo-300 hover:bg-indigo-50 transition">
+                    + 추가 업로드 ({currentImages.length}/10)
+                  </button>
+                )}
               </div>
             )}
-            <input ref={currentInputRef} type="file" accept="image/*,.pdf" onChange={handleCurrentImages} className="hidden" />
+            <input ref={currentInputRef} type="file" accept="image/*,.pdf" multiple onChange={handleCurrentImages} className="hidden" />
           </div>
 
           {/* 비교할 전년도 시험지 */}
