@@ -239,7 +239,8 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
   const [uploadingHitIdx, setUploadingHitIdx] = useState<{ idx: number; side: string } | null>(null)
 
   async function handleHitImageUpload(idx: number, side: 'examImage' | 'hitImage', files: FileList | null) {
-    if (!files || files.length === 0 || !examDbId) return
+    if (!files || files.length === 0) return
+    if (!examDbId) { alert('먼저 임시 저장을 해주세요. (저장 후 이미지 업로드가 가능합니다)'); return }
     setUploadingHitIdx({ idx, side })
     try {
       const { uploadSolutionFile } = await import('@/lib/db')
@@ -247,7 +248,11 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
       const result = await uploadSolutionFile(examDbId, 9000 + idx, file)
       if (result.url) {
         updateHitQuestion(idx, side, { url: result.url, fileName: result.fileName!, path: result.path! })
+      } else {
+        alert(`업로드 실패: ${result.error ?? '알 수 없는 오류'}`)
       }
+    } catch (err) {
+      alert(`업로드 오류: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setUploadingHitIdx(null)
     }
@@ -257,16 +262,20 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
   const [uploadingKillerIdx, setUploadingKillerIdx] = useState<number | null>(null)
 
   async function handleSolutionUpload(killerIdx: number, files: FileList | null) {
-    if (!files || files.length === 0 || !examDbId) return
+    if (!files || files.length === 0) return
+    if (!examDbId) { alert('먼저 임시 저장을 해주세요. (저장 후 이미지 업로드가 가능합니다)'); return }
     setUploadingKillerIdx(killerIdx)
     try {
       const { uploadSolutionFile } = await import('@/lib/db')
       const qNum = data.killerQuestions[killerIdx].number
       const newFiles: { url: string; fileName: string; path: string }[] = []
+      const errors: string[] = []
       for (const file of Array.from(files)) {
         const result = await uploadSolutionFile(examDbId, qNum, file)
         if (result.url) {
           newFiles.push({ url: result.url, fileName: result.fileName!, path: result.path! })
+        } else if (result.error) {
+          errors.push(`${file.name}: ${result.error}`)
         }
       }
       if (newFiles.length > 0) {
@@ -277,6 +286,9 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
           ),
         }))
       }
+      if (errors.length > 0) alert(`일부 파일 업로드 실패:\n${errors.join('\n')}`)
+    } catch (err) {
+      alert(`업로드 오류: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setUploadingKillerIdx(null)
     }
