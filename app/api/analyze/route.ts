@@ -37,7 +37,7 @@ async function runStage(
 ): Promise<{ data: Record<string, unknown>; keyIndex: number }> {
   let lastError: Error | null = null
   for (let keyIdx = 0; keyIdx < genAIs.length; keyIdx++) {
-    const model = genAIs[keyIdx].getGenerativeModel({ model: 'models/gemini-3-flash-preview' })
+    const model = genAIs[keyIdx].getGenerativeModel({ model: 'models/gemini-2.5-flash' })
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_DELAY))
