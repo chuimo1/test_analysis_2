@@ -471,12 +471,25 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
 
   const isSourceSubject = SOURCE_SUBJECTS.includes(d.subject)
   const isMath = d.subject === '수학'
+  const isSocial = d.subject === '사회'
+  const barChartHeight = (count: number) => Math.max(180, count * 28)
   const diffData = getDiffData(d.questions)
   const subUnitData = getSubUnitData(d.questions)
   const sourceData = getSourceData(d.questions)
   const mainUnitData = getMainUnitData(d.questions)
   const intentData = getIntentData(d.questions)
   const activeDiffs = DIFFICULTY_ORDER.filter((diff) => d.questions.some((q) => q.difficulty === diff))
+
+  const DiffLegend = () => (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-600">
+      {DIFFICULTY_ORDER.map((d) => (
+        <div key={d} className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: DIFF_COLOR[d] }} />
+          <span>{d}</span>
+        </div>
+      ))}
+    </div>
+  )
 
   const backLink = mode === 'admin' ? '/admin' : '/teacher'
   const statusColor = examStatus === '발행 완료' ? 'bg-green-100 text-green-700' : examStatus === '제출 완료' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
@@ -620,8 +633,8 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
               <thead>
                 <tr className="border-b border-gray-100">
                   {[
-                    '문제', '유형',
-                    ...(isSourceSubject ? ['영역', '출처'] : ['대단원', '중단원', '출처']),
+                    '문제', '유형', '출처',
+                    ...(isSourceSubject ? ['영역'] : ['대단원', '중단원']),
                     '출제자 의도', '예상 정답률', '난이도', '배점', ''
                   ].map((h, i) => (
                     <th key={i} className="text-left py-3 px-3 text-gray-500 font-medium text-xs whitespace-nowrap">{h}</th>
@@ -638,16 +651,6 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                         {['객관식','단답형','서술형'].map((t) => <option key={t}>{t}</option>)}
                       </select>
                     </td>
-                    <td className="py-2 px-3">
-                      <input value={q.mainUnit} onChange={(e) => updateQuestion(idx, 'mainUnit', e.target.value)}
-                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                    </td>
-                    {!isSourceSubject && (
-                      <td className="py-2 px-3">
-                        <input value={q.subUnit} onChange={(e) => updateQuestion(idx, 'subUnit', e.target.value)}
-                          className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                      </td>
-                    )}
                     <td className="py-2 px-3">
                       <div className="flex flex-col gap-1">
                         {(() => {
@@ -676,6 +679,16 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                         })()}
                       </div>
                     </td>
+                    <td className="py-2 px-3">
+                      <input value={q.mainUnit} onChange={(e) => updateQuestion(idx, 'mainUnit', e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                    </td>
+                    {!isSourceSubject && (
+                      <td className="py-2 px-3">
+                        <input value={q.subUnit} onChange={(e) => updateQuestion(idx, 'subUnit', e.target.value)}
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                      </td>
+                    )}
                     <td className="py-2 px-3">
                       <input value={q.intent} onChange={(e) => updateQuestion(idx, 'intent', e.target.value)}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-24 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
@@ -764,7 +777,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
 
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
             <h2 className="text-base font-bold text-gray-900 mb-4">📂 출처별 분석</h2>
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={barChartHeight(sourceData.length)}>
               <BarChart data={sourceData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
@@ -775,6 +788,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                 ))}
               </BarChart>
             </ResponsiveContainer>
+            <DiffLegend />
             <textarea value={sectionComments['sourceChart'] ?? ''} onChange={(e) => updateSectionComment('sourceChart', e.target.value)}
               placeholder="출처 분석에 대한 코멘트 (선택)" rows={2}
               className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
@@ -782,7 +796,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
 
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
             <h2 className="text-base font-bold text-gray-900 mb-4">{isMath ? '📚 대단원별 분석' : '📚 영역별 분석'}</h2>
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={barChartHeight(mainUnitData.length)}>
               <BarChart data={mainUnitData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
@@ -793,14 +807,36 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                 ))}
               </BarChart>
             </ResponsiveContainer>
+            <DiffLegend />
             <textarea value={sectionComments['mainUnitChart'] ?? ''} onChange={(e) => updateSectionComment('mainUnitChart', e.target.value)}
               placeholder={isMath ? '대단원 분석에 대한 코멘트 (선택)' : '영역 분석에 대한 코멘트 (선택)'} rows={2}
               className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
           </section>
 
+          {isSocial && (
+            <section className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h2 className="text-base font-bold text-gray-900 mb-4">📖 중단원별 분석</h2>
+              <ResponsiveContainer width="100%" height={barChartHeight(subUnitData.length)}>
+                <BarChart data={subUnitData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="subUnit" tick={{ fontSize: 10 }} width={88} interval={0} />
+                  <Tooltip />
+                  {activeDiffs.map((diff) => (
+                    <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+              <DiffLegend />
+              <textarea value={sectionComments['socialSubUnitChart'] ?? ''} onChange={(e) => updateSectionComment('socialSubUnitChart', e.target.value)}
+                placeholder="중단원 분석에 대한 코멘트 (선택)" rows={2}
+                className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
+            </section>
+          )}
+
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
             <h2 className="text-base font-bold text-gray-900 mb-4">{isMath ? '📖 중단원별 분석' : '🎯 출제자 의도별 분석'}</h2>
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={barChartHeight((isMath ? subUnitData : intentData).length)}>
               <BarChart data={(isMath ? subUnitData : intentData) as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
@@ -811,6 +847,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                 ))}
               </BarChart>
             </ResponsiveContainer>
+            <DiffLegend />
             <textarea value={sectionComments['subUnitChart'] ?? ''} onChange={(e) => updateSectionComment('subUnitChart', e.target.value)}
               placeholder={isMath ? '중단원 분석에 대한 코멘트 (선택)' : '출제자 의도 분석에 대한 코멘트 (선택)'} rows={2}
               className="w-full mt-3 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y" />
