@@ -280,13 +280,21 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
   async function handleSolutionUpload(killerIdx: number, files: FileList | null) {
     if (!files || files.length === 0) return
     if (!examDbId) { alert('먼저 임시 저장을 해주세요. (저장 후 이미지 업로드가 가능합니다)'); return }
+    const fileArr = Array.from(files)
+    const invalid = fileArr.filter((f) => !f || !f.name)
+    if (invalid.length > 0) { alert('파일을 다시 선택해 주세요.'); return }
+    const nonJpg = fileArr.filter((f) => !/\.(jpe?g)$/i.test(f.name) && f.type !== 'image/jpeg')
+    if (nonJpg.length > 0) {
+      alert(`JPG(JPEG) 파일만 업로드할 수 있습니다.\n제외된 파일: ${nonJpg.map((f) => f.name).join(', ')}`)
+      return
+    }
     setUploadingKillerIdx(killerIdx)
     try {
       const { uploadSolutionFile } = await import('@/lib/db')
       const qNum = data.killerQuestions[killerIdx].number
       const newFiles: { url: string; fileName: string; path: string }[] = []
       const errors: string[] = []
-      for (const file of Array.from(files)) {
+      for (const file of fileArr) {
         const result = await uploadSolutionFile(examDbId, qNum, file)
         if (result.url) {
           newFiles.push({ url: result.url, fileName: result.fileName!, path: result.path! })
@@ -942,7 +950,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                   <input
                     ref={(el) => { solutionInputRefs.current[i] = el }}
                     type="file"
-                    accept="image/*,.pdf,.ppt,.pptx"
+                    accept="image/jpeg,.jpg,.jpeg"
                     multiple
                     className="hidden"
                     onChange={(e) => { handleSolutionUpload(i, e.target.files); e.target.value = '' }}
