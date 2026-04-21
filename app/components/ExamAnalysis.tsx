@@ -804,7 +804,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
               <BarChart data={(isMath ? subUnitData : intentData) as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey={isMath ? 'subUnit' : 'intent'} tick={{ fontSize: 10 }} width={56} />
+                <YAxis type="category" dataKey={isMath ? 'subUnit' : 'intent'} tick={{ fontSize: 10 }} width={isMath ? 56 : 88} interval={0} />
                 <Tooltip />
                 {activeDiffs.map((diff) => (
                   <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
