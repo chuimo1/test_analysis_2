@@ -166,30 +166,55 @@ export default function UploadPage() {
         prevImageUrls.push(await uploadToStorage(f, 'temp-exams'))
       }
 
-      const res = await fetch('/api/analyze', {
+      const metaPayload = {
+        subject: form.subject,
+        grade: form.grade,
+        school: form.school,
+        examYear: form.examYear,
+        examTerm: form.examTerm,
+        expectedDifficulty: form.expectedDifficulty,
+        teacherNote: form.teacherNote || undefined,
+        examScope: examScope.length > 0 ? JSON.stringify(examScope) : undefined,
+      }
+
+      const extractRes = await fetch('/api/analyze/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject: form.subject,
-          grade: form.grade,
-          school: form.school,
-          examYear: form.examYear,
-          examTerm: form.examTerm,
-          expectedDifficulty: form.expectedDifficulty,
-          teacherNote: form.teacherNote || undefined,
-          examScope: examScope.length > 0 ? JSON.stringify(examScope) : undefined,
-          currentImageUrls,
-          prevImageUrls,
-        }),
+        body: JSON.stringify({ ...metaPayload, currentImageUrls }),
       })
-      if (!res.ok) {
-        const { error } = await res.json()
-        setError(error || '분석 중 오류가 발생했습니다.')
+      if (!extractRes.ok) {
+        const { error } = await extractRes.json()
+        setError(error || '문제 추출 중 오류가 발생했습니다.')
         setLoading(false)
         return
       }
+      const { questions, totalImages } = await extractRes.json()
 
-      const analysis = await res.json()
+      const synthRes = await fetch('/api/analyze/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...metaPayload, questions, prevImageUrls, totalImages }),
+      })
+      if (!synthRes.ok) {
+        const { error } = await synthRes.json()
+        setError(error || '종합 분석 중 오류가 발생했습니다.')
+        setLoading(false)
+        return
+      }
+      const synth = await synthRes.json()
+
+      const analysis = {
+        subject: form.subject,
+        grade: form.grade,
+        school: form.school,
+        examYear: Number(form.examYear),
+        examTerm: form.examTerm,
+        expectedDifficulty: form.expectedDifficulty ?? '중',
+        teacherNote: form.teacherNote ?? '',
+        examScope,
+        questions,
+        ...synth,
+      }
 
       const user = JSON.parse(localStorage.getItem('currentUser') ?? '{}')
       const result = await createExam({

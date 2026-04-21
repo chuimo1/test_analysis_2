@@ -1,6 +1,9 @@
 {
   "functions": {
-    "app/api/analyze/route.ts": {
+    "app/api/analyze/extract/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/analyze/synthesize/route.ts": {
       "maxDuration": 60
     }
   }
