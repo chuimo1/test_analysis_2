@@ -5,7 +5,7 @@ import { recordApiKeyUsage, getApiKeyStatus } from '@/lib/db'
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-const MODEL = 'models/gemini-3-flash-preview'
+const MODEL = 'gemini-3.1-flash-lite-preview'
 
 const API_KEYS = [
   process.env.GEMINI_API_KEY,
