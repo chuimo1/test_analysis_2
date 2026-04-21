@@ -481,7 +481,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
   const activeDiffs = DIFFICULTY_ORDER.filter((diff) => d.questions.some((q) => q.difficulty === diff))
 
   const DiffLegend = () => (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-600">
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-600">
       {DIFFICULTY_ORDER.map((d) => (
         <div key={d} className="flex items-center gap-1">
           <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: DIFF_COLOR[d] }} />
@@ -490,6 +490,14 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
       ))}
     </div>
   )
+
+  const yAxisWidth = (rows: Record<string, unknown>[], key: string) => {
+    const longest = rows.reduce((m, r) => Math.max(m, String(r[key] ?? '').length), 0)
+    return Math.min(220, Math.max(56, longest * 10 + 16))
+  }
+  const stackedXMax = (rows: Record<string, unknown>[]) =>
+    Math.max(1, ...rows.map((r) => activeDiffs.reduce((s, diff) => s + Number(r[diff] ?? 0), 0)))
+  const stackedTicks = (max: number) => Array.from({ length: max + 1 }, (_, i) => i)
 
   const backLink = mode === 'admin' ? '/admin' : '/teacher'
   const statusColor = examStatus === '발행 완료' ? 'bg-green-100 text-green-700' : examStatus === '제출 완료' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
@@ -780,8 +788,8 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
             <ResponsiveContainer width="100%" height={barChartHeight(sourceData.length)}>
               <BarChart data={sourceData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="source" tick={{ fontSize: 10 }} width={56} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} domain={[0, stackedXMax(sourceData as Record<string, unknown>[])]} ticks={stackedTicks(stackedXMax(sourceData as Record<string, unknown>[]))} />
+                <YAxis type="category" dataKey="source" tick={{ fontSize: 10 }} width={yAxisWidth(sourceData as Record<string, unknown>[], 'source')} interval={0} />
                 <Tooltip />
                 {activeDiffs.map((diff) => (
                   <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
@@ -799,8 +807,8 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
             <ResponsiveContainer width="100%" height={barChartHeight(mainUnitData.length)}>
               <BarChart data={mainUnitData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="mainUnit" tick={{ fontSize: 10 }} width={56} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} domain={[0, stackedXMax(mainUnitData as Record<string, unknown>[])]} ticks={stackedTicks(stackedXMax(mainUnitData as Record<string, unknown>[]))} />
+                <YAxis type="category" dataKey="mainUnit" tick={{ fontSize: 10 }} width={yAxisWidth(mainUnitData as Record<string, unknown>[], 'mainUnit')} interval={0} />
                 <Tooltip />
                 {activeDiffs.map((diff) => (
                   <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
@@ -819,8 +827,8 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
               <ResponsiveContainer width="100%" height={barChartHeight(subUnitData.length)}>
                 <BarChart data={subUnitData as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                  <YAxis type="category" dataKey="subUnit" tick={{ fontSize: 10 }} width={88} interval={0} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} domain={[0, stackedXMax(subUnitData as Record<string, unknown>[])]} ticks={stackedTicks(stackedXMax(subUnitData as Record<string, unknown>[]))} />
+                  <YAxis type="category" dataKey="subUnit" tick={{ fontSize: 10 }} width={yAxisWidth(subUnitData as Record<string, unknown>[], 'subUnit')} interval={0} />
                   <Tooltip />
                   {activeDiffs.map((diff) => (
                     <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
@@ -839,8 +847,8 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
             <ResponsiveContainer width="100%" height={barChartHeight((isMath ? subUnitData : intentData).length)}>
               <BarChart data={(isMath ? subUnitData : intentData) as Record<string, unknown>[]} layout="vertical" margin={{ left: 4, right: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey={isMath ? 'subUnit' : 'intent'} tick={{ fontSize: 10 }} width={isMath ? 56 : 88} interval={0} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} domain={[0, stackedXMax((isMath ? subUnitData : intentData) as Record<string, unknown>[])]} ticks={stackedTicks(stackedXMax((isMath ? subUnitData : intentData) as Record<string, unknown>[]))} />
+                <YAxis type="category" dataKey={isMath ? 'subUnit' : 'intent'} tick={{ fontSize: 10 }} width={yAxisWidth((isMath ? subUnitData : intentData) as Record<string, unknown>[], isMath ? 'subUnit' : 'intent')} interval={0} />
                 <Tooltip />
                 {activeDiffs.map((diff) => (
                   <Bar key={diff} dataKey={diff} stackId="a" fill={DIFF_COLOR[diff]} />
