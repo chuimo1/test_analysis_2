@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     const {
       subject, grade, school, examYear, examTerm,
       expectedDifficulty, teacherNote, examScope: examScopeRaw,
-      currentImageUrl, currentImageUrls,
+      currentImageUrl, currentImageUrls, prevImageUrls,
     } = body as {
       subject: string; grade: string; school: string
       examYear: string; examTerm: string
@@ -100,6 +100,14 @@ export async function POST(req: NextRequest) {
     for (const url of currentUrls) {
       const img = await urlToBase64(url)
       currentImageParts.push({ inlineData: img })
+    }
+
+    const prevImageParts: ImagePart[] = []
+    if (prevImageUrls && prevImageUrls.length > 0) {
+      for (const url of prevImageUrls) {
+        const img = await urlToBase64(url)
+        prevImageParts.push({ inlineData: img })
+      }
     }
 
     const subjectGuide = SUBJECT_PROMPT[subject] ?? ''
@@ -197,10 +205,17 @@ ${preAnalysisBlock}`
     }
 
     // ── Phase 2: synthesis on key 3 (or last) using merged questions text ──
-    const phase2Prompt = `${baseContext}
+    const hasPrev = prevImageParts.length > 0
+    const prevBlock = hasPrev
+      ? `\n\n[전년도 시험지 첨부]
+이번 호출에 이번 시험의 추출된 문제 데이터(JSON)와 함께, 전년도 시험지 ${prevImageParts.length}개의 이미지/PDF가 첨부되어 있습니다.
+전년도 시험지 내용을 직접 읽어서 이번 시험과 비교하고, yearOverYearComparison 필드에 변화 분석을 작성하세요 (출제 경향 변화 / 난이도 변화 / 새로 등장한 유형 / 사라진 유형 등 2~3문장).`
+      : ''
+
+    const phase2Prompt = `${baseContext}${prevBlock}
 
 [Phase 2: 시험 종합 분석 작업]
-다음은 Phase 1에서 추출한 시험의 모든 문제 정보입니다 (JSON 배열).
+다음은 Phase 1에서 추출한 이번 시험의 모든 문제 정보입니다 (JSON 배열).
 이 정보를 바탕으로 시험 총평 / 킬러문항 / 출제경향·전략을 한 번에 JSON으로 응답하세요. JSON 외 다른 텍스트는 포함하지 마세요.
 
 [추출된 문제 데이터]
@@ -213,7 +228,7 @@ ${JSON.stringify(allQuestions, null, 2)}
   "aiDifficulty": "상 | 중상 | 중 | 중하 | 하",
   "aiDifficultyReason": "AI 판단 난이도의 근거 2~3문장",
   "commonMistakes": [{"area": "실수가 잦은 영역/단원", "description": "학생들이 어떤 실수를 왜 하는지", "tip": "실수 방지 팁"}],
-  "yearOverYearComparison": "전년도 시험지 없음. 이번 시험 특성만 서술.",
+  "yearOverYearComparison": "${hasPrev ? '전년도 시험지와 비교한 변화 분석 2~3문장' : '전년도 시험지 없음. 이번 시험 특성만 서술.'}",
   "killerQuestions": [{"number": 8, "subUnit": "중단원명", "intent": "출제자 의도", "difficulty": "상", "rate": 42, "reason": "킬러문항인 이유"}],
   "strategies": [{"trend": "출제 경향", "strategy": "대응 학습 전략"}]
 }
@@ -228,7 +243,7 @@ ${JSON.stringify(allQuestions, null, 2)}
     const phase2PreferredKey = Math.min(3, allIdx.length - 1)
     const phase2Others = allIdx.filter((i) => i !== phase2PreferredKey)
     const phase2KeyOrder = [phase2PreferredKey, ...phase2Others.filter(isAlive), ...phase2Others.filter((i) => !isAlive(i))]
-    const phase2 = await runStage([], phase2Prompt, phase2KeyOrder)
+    const phase2 = await runStage(prevImageParts, phase2Prompt, phase2KeyOrder)
     recordApiKeyUsage(phase2.keyIndex, 'success').catch(() => {})
 
     return NextResponse.json({
