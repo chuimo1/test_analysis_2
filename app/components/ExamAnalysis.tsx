@@ -359,6 +359,12 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
 
   async function handleFinalize() {
     if (!examDbId) return
+    const missingSource = data.questions.filter((q) => !q.source || !q.source.trim() || q.source === '직접입력')
+    if (missingSource.length > 0) {
+      const nums = missingSource.map((q) => q.number).join(', ')
+      alert(`출처가 입력되지 않은 문항이 ${missingSource.length}개 있습니다.\n문항 번호: ${nums}\n\n모든 문항의 출처를 입력한 뒤 다시 제출해 주세요.`)
+      return
+    }
     const { updateExamAnalysis, finalizeExam } = await import('@/lib/db')
     await updateExamAnalysis(examDbId, { ...data, overallDifficulty, sectionComments, hitQuestions })
     await finalizeExam(examDbId)
