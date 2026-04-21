@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { recordApiKeyUsage, getApiKeyStatus } from './db'
 
-export const MODEL = 'gemini-3.1-flash-lite-preview'
+export const MODEL = 'gemini-2.5-flash-lite'
 
 const API_KEYS = [
   process.env.GEMINI_API_KEY,
