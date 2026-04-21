@@ -250,12 +250,18 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
 
   async function handleHitImageUpload(idx: number, side: 'examImage' | 'hitImage', files: FileList | null) {
     if (!files || files.length === 0) return
+    const file = files[0]
+    if (!file || !file.name) { alert('파일을 다시 선택해 주세요.'); return }
+    if (!/\.(jpe?g)$/i.test(file.name) && file.type !== 'image/jpeg') {
+      alert('JPG(JPEG) 파일만 업로드할 수 있습니다.')
+      return
+    }
     if (!examDbId) { alert('먼저 임시 저장을 해주세요. (저장 후 이미지 업로드가 가능합니다)'); return }
+    const slot = side === 'examImage' ? 9000 : 9500
     setUploadingHitIdx({ idx, side })
     try {
       const { uploadSolutionFile } = await import('@/lib/db')
-      const file = files[0]
-      const result = await uploadSolutionFile(examDbId, 9000 + idx, file)
+      const result = await uploadSolutionFile(examDbId, slot + idx, file)
       if (result.url) {
         updateHitQuestion(idx, side, { url: result.url, fileName: result.fileName!, path: result.path! })
       } else {
@@ -1029,16 +1035,25 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                         <div className="flex items-center justify-between px-3 py-1.5 border-t border-green-100">
                           <span className="text-xs text-gray-500 truncate max-w-[120px]">{h.examImage.fileName}</span>
                           <div className="flex items-center gap-2">
-                            <button onClick={() => { updateHitQuestion(i, 'examImage', null); hitExamInputRefs.current[i]?.click() }}
-                              title="다시 첨부" className="text-indigo-500 hover:text-indigo-700">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                            </button>
-                            <button onClick={() => updateHitQuestion(i, 'examImage', null)}
-                              title="삭제" className="text-gray-400 hover:text-red-500">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                            {mode === 'admin' && (
+                              <a href={h.examImage.url} download={h.examImage.fileName} title="다운로드" className="text-green-600 hover:text-green-800">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" /></svg>
+                              </a>
+                            )}
+                            {mode === 'teacher' && (
+                              <>
+                                <button onClick={() => { updateHitQuestion(i, 'examImage', null); hitExamInputRefs.current[i]?.click() }}
+                                  title="다시 첨부" className="text-indigo-500 hover:text-indigo-700">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                </button>
+                                <button onClick={() => updateHitQuestion(i, 'examImage', null)}
+                                  title="삭제" className="text-gray-400 hover:text-red-500">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1049,7 +1064,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                         {uploadingHitIdx?.idx === i && uploadingHitIdx?.side === 'examImage' ? '업로드 중...' : '+ 이미지 업로드'}
                       </button>
                     )}
-                    <input ref={(el) => { hitExamInputRefs.current[i] = el }} type="file" accept="image/*,.pdf" className="hidden"
+                    <input ref={(el) => { hitExamInputRefs.current[i] = el }} type="file" accept="image/jpeg,.jpg,.jpeg" className="hidden"
                       onChange={(e) => { handleHitImageUpload(i, 'examImage', e.target.files); e.target.value = '' }} />
                   </div>
                   <div>
@@ -1063,16 +1078,25 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                         <div className="flex items-center justify-between px-3 py-1.5 border-t border-green-100">
                           <span className="text-xs text-gray-500 truncate max-w-[120px]">{h.hitImage.fileName}</span>
                           <div className="flex items-center gap-2">
-                            <button onClick={() => { updateHitQuestion(i, 'hitImage', null); hitMatchInputRefs.current[i]?.click() }}
-                              title="다시 첨부" className="text-indigo-500 hover:text-indigo-700">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                            </button>
-                            <button onClick={() => updateHitQuestion(i, 'hitImage', null)}
-                              title="삭제" className="text-gray-400 hover:text-red-500">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                            {mode === 'admin' && (
+                              <a href={h.hitImage.url} download={h.hitImage.fileName} title="다운로드" className="text-green-600 hover:text-green-800">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" /></svg>
+                              </a>
+                            )}
+                            {mode === 'teacher' && (
+                              <>
+                                <button onClick={() => { updateHitQuestion(i, 'hitImage', null); hitMatchInputRefs.current[i]?.click() }}
+                                  title="다시 첨부" className="text-indigo-500 hover:text-indigo-700">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                </button>
+                                <button onClick={() => updateHitQuestion(i, 'hitImage', null)}
+                                  title="삭제" className="text-gray-400 hover:text-red-500">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1083,7 +1107,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                         {uploadingHitIdx?.idx === i && uploadingHitIdx?.side === 'hitImage' ? '업로드 중...' : '+ 이미지 업로드'}
                       </button>
                     )}
-                    <input ref={(el) => { hitMatchInputRefs.current[i] = el }} type="file" accept="image/*,.pdf" className="hidden"
+                    <input ref={(el) => { hitMatchInputRefs.current[i] = el }} type="file" accept="image/jpeg,.jpg,.jpeg" className="hidden"
                       onChange={(e) => { handleHitImageUpload(i, 'hitImage', e.target.files); e.target.value = '' }} />
                   </div>
                 </div>
