@@ -97,7 +97,7 @@ export default function UploadPage() {
 
   async function handleCurrentImages(e: React.ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(e.target.files ?? [])
-    const remaining = Math.max(0, 10 - currentImages.length)
+    const remaining = Math.max(0, 12 - currentImages.length)
     const files = incoming.slice(0, remaining)
     const compressed = await Promise.all(files.map((f) => compressImage(f)))
     setCurrentImages((prev) => [...prev, ...compressed])
@@ -375,7 +375,7 @@ export default function UploadPage() {
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-2">
               <h2 className="font-semibold text-gray-900">분석할 시험지</h2>
-              <span className="text-xs text-gray-400">최대 10장 ({currentImages.length}/10)</span>
+              <span className="text-xs text-gray-400">최대 12장 ({currentImages.length}/12)</span>
             </div>
             <p className="text-xs text-gray-400 mb-5">AI가 분석할 시험지 이미지를 순서대로 업로드하세요 (JPG, PNG, PDF)</p>
 
@@ -406,10 +406,10 @@ export default function UploadPage() {
                     </button>
                   </div>
                 ))}
-                {currentImages.length < 10 && (
+                {currentImages.length < 12 && (
                   <button type="button" onClick={() => currentInputRef.current?.click()}
                     className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 text-center text-sm text-gray-400 hover:border-indigo-300 hover:bg-indigo-50 transition">
-                    + 추가 업로드 ({currentImages.length}/10)
+                    + 추가 업로드 ({currentImages.length}/12)
                   </button>
                 )}
               </div>

@@ -713,10 +713,7 @@ function ExamAnalysisContent({ examId, mode }: ExamAnalysisProps) {
                       </select>
                     </td>
                     <td className="py-2 px-3">
-                      <input value={q.score} onChange={(e) => {
-                        const v = e.target.value
-                        updateQuestion(idx, 'score', v === '-' ? '-' : Number(v) || '-')
-                      }}
+                      <input value={q.score} onChange={(e) => updateQuestion(idx, 'score', e.target.value)}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-12 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
                     </td>
                     <td className="py-2 px-3">
