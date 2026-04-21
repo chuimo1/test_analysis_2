@@ -28,17 +28,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'API 키가 등록되어 있지 않습니다.' }, { status: 503 })
     }
 
-    const currentImageParts: ImagePart[] = []
-    for (const url of currentUrls) {
-      const img = await urlToBase64(url)
-      currentImageParts.push({ inlineData: img })
-    }
+    const currentImages = await Promise.all(currentUrls.map(urlToBase64))
+    const currentImageParts: ImagePart[] = currentImages.map((img) => ({ inlineData: img }))
 
     const totalImages = currentImageParts.length
     const baseContext = buildBaseContext(body, totalImages)
 
-    const PHASE1_KEY_COUNT = Math.min(3, genAIs.length)
-    const chunkCount = Math.min(totalImages, PHASE1_KEY_COUNT)
+    const chunkCount = Math.min(totalImages, genAIs.length)
     const chunks = distributeImages(currentImageParts, chunkCount).filter((c) => c.length > 0)
 
     const phase1Prompt = (chunkSize: number) => `${baseContext}
