@@ -71,7 +71,7 @@ export default function UploadPage() {
   const currentInputRef = useRef<HTMLInputElement>(null)
   const prevInputRef = useRef<HTMLInputElement>(null)
 
-  function compressImage(file: File, maxSize = 1600): Promise<File> {
+  function compressImage(file: File, maxSize = 1200): Promise<File> {
     if (file.type === 'application/pdf') return Promise.resolve(file)
     return new Promise((resolve) => {
       const img = new Image()
@@ -84,7 +84,7 @@ export default function UploadPage() {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         canvas.toBlob((blob) => {
           resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file)
-        }, 'image/jpeg', 0.8)
+        }, 'image/jpeg', 0.65)
       }
       img.onerror = () => resolve(file)
       img.src = URL.createObjectURL(file)
